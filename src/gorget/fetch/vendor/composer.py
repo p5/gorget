@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from gorget.config.schema import ToolchainEntry
+from gorget.config.schema import ToolchainEntry, VendorPlatform
 from gorget.exceptions import GorgetTransientError
 from gorget.toolchain import wrap_command
 from gorget.util.subprocess_run import run
@@ -16,6 +16,7 @@ class ComposerVendor:
         toolchain: Sequence[ToolchainEntry] = (),
         package_dir: Path | None = None,
         use_workspace: bool = True,
+        platforms: Sequence[VendorPlatform] = (),
     ) -> Path:
         cmd = ["composer", "install", "--no-dev", "--no-scripts", "--no-interaction"]
         result = run(wrap_command(cmd, toolchain), cwd=module_dir)

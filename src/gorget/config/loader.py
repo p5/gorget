@@ -34,6 +34,7 @@ from gorget.config.schema import (
     VendorConstraintEntry,
     VendorModule,
     VendorPinEntry,
+    VendorPlatform,
     VerifySection,
     VerifyStep,
 )
@@ -93,6 +94,8 @@ def _parse_fetch_step(raw_step: object) -> FetchStep:
         ]
     if step_type == "vendor" and "modules" in step:
         step["modules"] = [VendorModule(**_snake_case_keys(mod)) for mod in step["modules"]]
+    if step_type == "vendor" and "platforms" in step:
+        step["platforms"] = [VendorPlatform(**_snake_case_keys(p)) for p in step["platforms"]]
     try:
         return step_cls(**step)
     except TypeError as exc:
@@ -114,6 +117,8 @@ def _parse_transform_step(raw_step: object) -> TransformStep:
         step["pins"] = [VendorPinEntry(**_snake_case_keys(pin)) for pin in step["pins"]]
     if "modules" in step:
         step["modules"] = [VendorModule(**_snake_case_keys(mod)) for mod in step["modules"]]
+    if step_type == "vendor" and "platforms" in step:
+        step["platforms"] = [VendorPlatform(**_snake_case_keys(p)) for p in step["platforms"]]
     try:
         return step_cls(**step)
     except TypeError as exc:

@@ -63,7 +63,7 @@ four explicitly -- there's no container providing them implicitly anymore.
 | `spec-source` | Download the spec's `Source0`/`SourceN` URLs (macro-resolved), by index or all |
 | `url` | Download an explicit URL not declared in the spec |
 | `git` | Clone a repo at a tag/branch/commit, archive the checkout (or a subdir) |
-| `vendor` | Generate a Go/npm/Cargo/Composer vendor archive (multi-submodule aware) |
+| `vendor` | Generate a Go/npm/pnpm/yarn/Cargo/Composer vendor archive (multi-submodule aware, multi-arch for npm) |
 
 ### `transform:`
 
@@ -188,7 +188,7 @@ instead of shipping quietly.
 policy:
   vendor-constraints:
     - package: sanitize-html
-      ecosystem: npm        # go | npm | cargo
+      ecosystem: npm        # go | npm | pnpm | yarn | cargo
       version: "2.17.5"      # minimum version -- "at least this version"
       reason: "CVE-2024-XXXXX"
 

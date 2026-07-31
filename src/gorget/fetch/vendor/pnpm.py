@@ -9,7 +9,7 @@ from gorget.toolchain import wrap_command
 from gorget.util.subprocess_run import run
 
 
-class CargoVendor:
+class PnpmVendor:
     def vendor(
         self,
         module_dir: Path,
@@ -18,11 +18,16 @@ class CargoVendor:
         use_workspace: bool = True,
         platforms: Sequence[VendorPlatform] = (),
     ) -> Path:
-        vendor_dir = module_dir / "vendor"
-        cmd = ["cargo", "vendor", str(vendor_dir)]
+        store_dir = module_dir / ".pnpm-store"
+        store_dir.mkdir(exist_ok=True)
+        cmd = [
+            "pnpm", "fetch",
+            "--frozen-lockfile",
+            "--store-dir", str(store_dir),
+        ]
         result = run(wrap_command(cmd, toolchain), cwd=module_dir)
         if result.returncode != 0:
             raise GorgetTransientError(
-                f"cargo vendor failed in {module_dir}: {result.stderr.strip()}"
+                f"pnpm fetch failed in {module_dir}: {result.stderr.strip()}"
             )
-        return vendor_dir
+        return store_dir
