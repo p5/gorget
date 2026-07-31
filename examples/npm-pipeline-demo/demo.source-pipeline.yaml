@@ -1,0 +1,50 @@
+fetch:
+  - type: git
+    repo: "./demo-repo"
+    ref: "main"
+
+  # Vendor npm dependencies as an offline cache tarball. Multi-arch by
+  # default (x64 + arm64 on linux/glibc). The cache is what `npm ci
+  # --offline --cache <dir>` consumes during the RPM build.
+  #
+  # `bundled_provides: true` parses the lockfile and stores the
+  # dependency list as a step output, keyed by this step's `id`.
+  - id: ui-deps
+    type: vendor
+    ecosystem: npm
+    bundled_provides: true
+    archive_name: "demo-npm-cache.tar.bz2"
+    modules:
+      - path: "ui"
+
+transform:
+  # Bump a vendored dependency to a minimum version. If the lockfile
+  # already satisfies the constraint, the bump is skipped entirely —
+  # no unnecessary lockfile churn.
+  #
+  # Tilde prefix ("~1.2") pins to that prefix (latest 1.2.x).
+  # Plain version ("1.3.0") sets a minimum (>= 1.3.0).
+  - type: vendor-bump
+    ecosystem: npm
+    pins:
+      - dependency: "is-odd"
+        version: "3.0.1"
+    modules:
+      - path: "ui"
+
+  # Re-vendor after the bump to pick up any lockfile changes.
+  - id: ui-deps-final
+    type: vendor
+    ecosystem: npm
+    bundled_provides: true
+    archive_name: "demo-npm-cache.tar.bz2"
+    modules:
+      - path: "ui"
+
+# The bundled-provides post step reads the dependency list from a
+# vendor step's output via ${{ }} expression, and writes a
+# `bundled-npm-provides.inc` file containing RPM Provides lines.
+# The spec imports it with `%include %{S:N}`.
+post:
+  - type: bundled-provides
+    input: "${{ steps.ui-deps-final.bundled_provides.production }}"

@@ -63,7 +63,7 @@ four explicitly -- there's no container providing them implicitly anymore.
 | `spec-source` | Download the spec's `Source0`/`SourceN` URLs (macro-resolved), by index or all |
 | `url` | Download an explicit URL not declared in the spec |
 | `git` | Clone a repo at a tag/branch/commit, archive the checkout (or a subdir) |
-| `vendor` | Generate a Go/npm/pnpm/yarn/Cargo/Composer vendor archive (multi-submodule aware, multi-arch for npm) |
+| `vendor` | Generate a Go/npm/pnpm/yarn/Cargo/Composer vendor archive (multi-submodule aware, multi-arch for npm/pnpm/yarn). Set `bundled_provides: true` on JS ecosystems to expose lockfile dependency data as a step output for `bundled-provides` post steps |
 
 ### `transform:`
 
@@ -221,19 +221,55 @@ needs to land in the tracked spec file, e.g. refreshing a generated
 
 ```yaml
 post:
+  # Run an arbitrary command in --package-dir.
   - type: run
     artifacts: ["${PACKAGE}-${VERSION}.tar.gz"]
-    command: ["./generate-bundled-provides.py", "${VERSION}"]
+    command: ["./some-script.py", "${VERSION}"]
+
+  # Write bundled-npm-provides.inc from a vendor step's lockfile data.
+  # The spec imports it with %include %{S:N} -- no marker comments needed.
+  - type: bundled-provides
+    input: "${{ steps.ui-deps.bundled_provides.production }}"
 ```
 
-Each step's `command` runs with `--package-dir` as its working directory --
-which is *not* where fetched/vendored artifacts live (they're in a scratch
-work dir until Emit, which runs after Post). A step that needs to read one
-declares its `output_name` in `artifacts:`; each is copied into
+Each `run` step's `command` runs with `--package-dir` as its working
+directory -- which is *not* where fetched/vendored artifacts live (they're in
+a scratch work dir until Emit, which runs after Post). A step that needs to
+read one declares its `output_name` in `artifacts:`; each is copied into
 `--package-dir` under that name immediately before the command runs.
+
+The `bundled-provides` step reads its input from a vendor step's output via a
+`${{ steps.<id>.<key> }}` expression (see **Step IDs and expressions** below)
+and writes `bundled-npm-provides.inc` into `--package-dir`.
 
 Skipped entirely under `--dry-run` (nothing should write to the real package
 directory during a dry run) and when no `post:` steps are declared.
+
+### Step IDs and `${{ }}` expressions
+
+Any step in `fetch:`, `transform:`, or `post:` can declare an `id:` field.
+Steps with IDs can expose outputs that downstream steps reference via
+`${{ steps.<id>.<key>.<subkey> }}` expressions -- resolved at runtime, not at
+YAML load time. If the entire field value is a single expression, the raw
+Python object is returned (preserving lists/dicts); embedded expressions are
+stringified.
+
+```yaml
+fetch:
+  - id: ui-deps
+    type: vendor
+    ecosystem: npm
+    bundled_provides: true
+    modules:
+      - path: "web/ui"
+
+post:
+  - type: bundled-provides
+    input: "${{ steps.ui-deps.bundled_provides.production }}"
+```
+
+Step IDs must be alphanumeric with hyphens and underscores (no dots -- they
+conflict with dotpath resolution). IDs must be unique across all stages.
 
 ### `toolchain:`
 
