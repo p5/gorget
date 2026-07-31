@@ -35,6 +35,8 @@ def matches_prefix(actual: str, prefix: str) -> bool:
     """
     actual_parts = _parse(actual)
     prefix_parts = _parse(prefix)
+    if not prefix_parts:
+        return False
     return actual_parts[: len(prefix_parts)] == prefix_parts
 
 

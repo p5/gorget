@@ -6,6 +6,8 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from gorget.exceptions import GorgetConfigError
+
 _EXPR_RE = re.compile(r"\$\{\{\s*(.+?)\s*\}\}")
 
 
@@ -16,18 +18,22 @@ def resolve_expression(value: str, get_output: Callable) -> Any:
     object (preserving type). If expressions are embedded in a larger
     string, stringify and interpolate.
     """
-    # Check if the entire value is a single expression
+    def _resolve(dotpath: str) -> Any:
+        try:
+            return get_output(dotpath)
+        except KeyError as exc:
+            raise GorgetConfigError(
+                f"expression ${{{{ {dotpath} }}}} could not be resolved: {exc}"
+            ) from exc
+
     match = _EXPR_RE.fullmatch(value.strip())
     if match:
-        return get_output(match.group(1))
+        return _resolve(match.group(1))
 
-    # Otherwise, interpolate into the string
     def replacer(m: re.Match) -> str:
-        result = get_output(m.group(1))
-        return str(result)
+        return str(_resolve(m.group(1)))
 
-    resolved = _EXPR_RE.sub(replacer, value)
-    return resolved
+    return _EXPR_RE.sub(replacer, value)
 
 
 def resolve_step_expressions(step_dict: dict, get_output: Callable) -> dict:

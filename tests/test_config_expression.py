@@ -39,7 +39,8 @@ def test_no_expression_returns_string_unchanged():
 
 
 def test_invalid_dotpath_raises():
-    with pytest.raises(KeyError):
+    from gorget.exceptions import GorgetConfigError
+    with pytest.raises(GorgetConfigError, match="could not be resolved"):
         resolve_expression("${{ invalid.path }}", _mock_output)
 
 
