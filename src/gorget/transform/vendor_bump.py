@@ -84,9 +84,11 @@ class _NpmPin:
                 data[key][entry.dependency] = specifier
                 found = True
         if not found:
-            raise GorgetConfigError(
-                f"vendor-bump: {entry.dependency} not found in package.json "
-                f"dependencies/devDependencies in {module_dir}"
+            overrides = data.setdefault("overrides", {})
+            overrides[entry.dependency] = specifier
+            logger.info(
+                "vendor-bump: %s is transitive, adding to overrides",
+                entry.dependency,
             )
         package_json.write_text(json.dumps(data, indent=2) + "\n")
 
@@ -244,10 +246,13 @@ class VendorBumpHandler:
         it from the (now modified) source tree. Same pattern as strip-tarball.
         """
         source_artifacts = [
-            a for a in state.artifacts if a.source_description == "git"
+            a for a in state.artifacts
+            if a.source_description not in ("dry-run",)
+            and not a.source_description.startswith("vendor:")
+            and a.output_name.endswith((".tar.gz", ".tar.bz2", ".tar.xz"))
         ]
         if not source_artifacts:
-            logger.info("vendor-bump: no git-fetched source tarball to repack")
+            logger.info("vendor-bump: no source tarball to repack")
             return
         artifact = source_artifacts[0]
         logger.info("vendor-bump: repacking %s with bumped lockfiles", artifact.output_name)

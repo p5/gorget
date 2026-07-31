@@ -118,11 +118,13 @@ def test_npm_pin_missing_package_json_raises(tmp_path):
         _NpmPin().apply(tmp_path, entry, [])
 
 
-def test_npm_pin_dependency_not_found_raises(tmp_path):
+def test_npm_pin_transitive_adds_to_overrides(tmp_path, mocker):
     (tmp_path / "package.json").write_text(json.dumps({"dependencies": {}}))
-    entry = VendorBumpEntry(dependency="missing-pkg", version="1.0.0")
-    with pytest.raises(GorgetConfigError, match="missing-pkg"):
-        _NpmPin().apply(tmp_path, entry, [])
+    mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+    entry = VendorBumpEntry(dependency="transitive-pkg", version="1.0.0")
+    _NpmPin().apply(tmp_path, entry, [])
+    data = json.loads((tmp_path / "package.json").read_text())
+    assert data["overrides"]["transitive-pkg"] == ">=1.0.0"
 
 
 def test_npm_pin_install_failure_raises(tmp_path, mocker):
