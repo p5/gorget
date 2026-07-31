@@ -1,6 +1,6 @@
 """`PolicyStage`: validates the final vendored output against declared
-constraints. Acts as a safety net for `vendor-pin` (confirms the pin took
-effect) and catches violations in packages that don't use `vendor-pin` at all --
+constraints. Acts as a safety net for `vendor-bump` (confirms the pin took
+effect) and catches violations in packages that don't use `vendor-bump` at all --
 this re-runs on every pipeline execution, so a later upstream update silently
 reverting a security fix fails the build instead of shipping quietly. All
 deterministic failures (vendor-constraints, `go mod verify`, license-compliance)

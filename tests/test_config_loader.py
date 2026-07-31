@@ -15,7 +15,7 @@ from gorget.config.schema import (
     StripTarballStep,
     ToolchainEntry,
     UrlStep,
-    VendorPinStep,
+    VendorBumpStep,
     VendorStep,
 )
 from gorget.config.substitution import SubstitutionVars
@@ -112,11 +112,11 @@ def test_transform_strip_tarball_step_parses():
     assert step.paths == ["*/deps/bundled-openssl"]
 
 
-def test_transform_vendor_pin_then_vendor_sequencing():
+def test_transform_vendor_bump_then_vendor_sequencing():
     spec = build_pipeline_spec(
-        FIXTURES / "transform-vendor-pin.yaml", substitution_vars=make_vars()
+        FIXTURES / "transform-vendor-bump.yaml", substitution_vars=make_vars()
     )
-    assert isinstance(spec.transform.steps[0], VendorPinStep)
+    assert isinstance(spec.transform.steps[0], VendorBumpStep)
     assert spec.transform.steps[0].pins[0].dependency == "golang.org/x/net"
     assert spec.transform.steps[0].pins[0].minimum_version == "0.23.0"
     assert isinstance(spec.transform.steps[1], VendorStep)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Creates demo-repo/: a tiny real Go module with a bit of everything the
 # pipeline in this directory exercises -- a dependency pinned to an old
-# version (vendor-pin), a docs/ dir that gets stripped from the source
+# version (vendor-bump), a docs/ dir that gets stripped from the source
 # tarball (strip-tarball), and a minimal npm UI project (build-ui).
 set -euo pipefail
 cd "$(dirname "$0")"

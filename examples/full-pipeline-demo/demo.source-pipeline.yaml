@@ -16,7 +16,7 @@ fetch:
 transform:
   # Remove docs/ from the source tarball before it's emitted. Note this only
   # affects the *archived copy* -- it doesn't touch the live checkout that
-  # vendor-pin/vendor/build-ui/run operate against below. `target` is required
+  # vendor-bump/vendor/build-ui/run operate against below. `target` is required
   # here (unlike go-pipeline-demo) since multiple artifacts are now fetched --
   # no auto-select fallback once there's more than one to guess between.
   - type: strip-tarball
@@ -24,7 +24,7 @@ transform:
     paths:
       - "*/docs"
 
-  - type: vendor-pin
+  - type: vendor-bump
     ecosystem: go
     pins:
       # Go module versions need the "v" prefix -- unlike npm/cargo, which
@@ -33,7 +33,7 @@ transform:
       - dependency: "rsc.io/quote"
         minimum-version: "v1.5.2"
 
-  # Re-vendor now that vendor-pin has bumped the dependency -- vendor is a
+  # Re-vendor now that vendor-bump has bumped the dependency -- vendor is a
   # legal step under both fetch: and transform:, reused unchanged either way.
   - type: vendor
     ecosystem: go
@@ -70,7 +70,7 @@ verify:
     signature: "hello-2.12.1.tar.gz.sig"
     keyring: "hello-maintainer.asc"
 
-# Safety net confirming vendor-pin's bump actually took effect in the
+# Safety net confirming vendor-bump's bump actually took effect in the
 # vendored archive -- re-checked on every run, so a later change reverting
 # the pin fails closed instead of shipping quietly (see ../policy-demo).
 policy:
@@ -78,4 +78,4 @@ policy:
     - package: rsc.io/quote
       ecosystem: go
       version: "1.5.2"
-      reason: "demo: confirms the vendor-pin above actually took effect"
+      reason: "demo: confirms the vendor-bump above actually took effect"

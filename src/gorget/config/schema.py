@@ -111,16 +111,16 @@ class StripTarballStep:
 
 
 @dataclass(frozen=True, kw_only=True)
-class VendorPinEntry:
+class VendorBumpEntry:
     dependency: str
     minimum_version: str
 
 
 @dataclass(frozen=True, kw_only=True)
-class VendorPinStep:
-    type: Literal["vendor-pin"] = "vendor-pin"
+class VendorBumpStep:
+    type: Literal["vendor-bump"] = "vendor-bump"
     ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo"]
-    pins: list[VendorPinEntry] = field(default_factory=list)
+    pins: list[VendorBumpEntry] = field(default_factory=list)
     modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
 
 
@@ -163,13 +163,13 @@ class RunStep:
 
 
 # `vendor` is reused verbatim from the fetch schema: a `transform:` list can run
-# `vendor-pin` then `vendor` in order (edit lockfiles, then vendor) since Fetch's
+# `vendor-bump` then `vendor` in order (edit lockfiles, then vendor) since Fetch's
 # own `vendor` step always runs before Transform and can't do that ordering itself.
-TransformStep = StripTarballStep | VendorPinStep | BuildUiStep | RunStep | VendorStep
+TransformStep = StripTarballStep | VendorBumpStep | BuildUiStep | RunStep | VendorStep
 
 TRANSFORM_STEP_TYPES: dict[str, type] = {
     "strip-tarball": StripTarballStep,
-    "vendor-pin": VendorPinStep,
+    "vendor-bump": VendorBumpStep,
     "build-ui": BuildUiStep,
     "run": RunStep,
     "vendor": VendorStep,
@@ -233,7 +233,7 @@ class AcceptedChecksumsSection:
 class VendorConstraintEntry:
     package: str
     ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo"]
-    # Minimum version -- "at least this version," same semantics as vendor-pin.
+    # Minimum version -- "at least this version," same semantics as vendor-bump.
     version: str
     reason: str
 
