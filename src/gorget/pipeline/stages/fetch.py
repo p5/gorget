@@ -64,9 +64,9 @@ class FetchStage:
             artifacts = handler.run(step, fetch_ctx)
             logger.debug("fetch step produced: %s", [a.output_name for a in artifacts])
             state.artifacts.extend(artifacts)
-            # If the handler populated last_outputs (e.g. VendorHandler with
-            # bundled_provides=True) and the step carries an id, persist the
-            # outputs so later ${{ steps.<id>.<key> }} expressions can resolve.
+            # If the handler populated last_outputs (e.g. VendorHandler for
+            # JS ecosystems) and the step carries an id, persist the outputs
+            # so later ${{ steps.<id>.<key> }} expressions can resolve.
             if hasattr(step, "id") and step.id:
                 if hasattr(handler, "last_outputs") and handler.last_outputs:
                     for key, value in handler.last_outputs.items():

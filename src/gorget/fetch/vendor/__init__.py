@@ -66,7 +66,7 @@ class VendorHandler:
             mtime = commit_timestamp(ctx.source_dir)
             combine_vendor_archives(module_outputs, archive_path, mtime=mtime)
 
-            if step.bundled_provides and step.ecosystem in ("npm", "pnpm", "yarn"):
+            if step.ecosystem in ("npm", "pnpm", "yarn"):
                 from gorget.fetch.vendor.lockfile import parse_bundled_provides
 
                 provides = parse_bundled_provides(

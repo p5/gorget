@@ -7,12 +7,11 @@ fetch:
   # default (x64 + arm64 on linux/glibc). The cache is what `npm ci
   # --offline --cache <dir>` consumes during the RPM build.
   #
-  # `bundled_provides: true` parses the lockfile and stores the
-  # dependency list as a step output, keyed by this step's `id`.
+  # For JS ecosystems, the vendor step automatically parses lockfiles
+  # and stores the dependency list as a step output, keyed by `id`.
   - id: ui-deps
     type: vendor
     ecosystem: npm
-    bundled_provides: true
     archive_name: "demo-npm-cache.tar.bz2"
     modules:
       - path: "ui"
@@ -36,7 +35,6 @@ transform:
   - id: ui-deps-final
     type: vendor
     ecosystem: npm
-    bundled_provides: true
     archive_name: "demo-npm-cache.tar.bz2"
     modules:
       - path: "ui"

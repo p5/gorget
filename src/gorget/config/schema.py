@@ -88,7 +88,6 @@ class VendorStep:
     archive_name: str | None = None
     modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
     platforms: list[VendorPlatform] | None = None
-    bundled_provides: bool = False
 
 
 FetchStep = SpecUpdateStep | SpecSourceStep | UrlStep | GitStep | VendorStep

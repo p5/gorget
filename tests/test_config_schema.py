@@ -162,16 +162,6 @@ def test_step_id_can_be_set():
     assert step2.id == "build"
 
 
-def test_vendor_step_bundled_provides_default_false():
-    step = VendorStep(ecosystem="npm")
-    assert step.bundled_provides is False
-
-
-def test_vendor_step_bundled_provides_true():
-    step = VendorStep(ecosystem="npm", bundled_provides=True)
-    assert step.bundled_provides is True
-
-
 def test_bundled_provides_step_defaults():
     step = BundledProvidesStep()
     assert step.type == "bundled-provides"

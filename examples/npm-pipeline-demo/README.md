@@ -6,8 +6,9 @@ Demonstrates gorget's npm vendor pipeline features:
    npm cache tarball with packages for both x86_64 and aarch64 (configurable via
    `platforms:`).
 
-2. **Step IDs and `${{ }}` expressions** — the vendor step declares `id: ui-deps`
-   and `bundled_provides: true`. Downstream steps reference its outputs with
+2. **Step IDs and `${{ }}` expressions** — the vendor step declares `id: ui-deps`.
+   JS vendor steps automatically parse lockfiles and expose dependency data as
+   step outputs. Downstream steps reference them with
    `${{ steps.ui-deps.bundled_provides.production }}`.
 
 3. **vendor-bump with skip-if-satisfied** — bumps a dependency to a minimum

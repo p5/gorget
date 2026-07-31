@@ -63,7 +63,7 @@ four explicitly -- there's no container providing them implicitly anymore.
 | `spec-source` | Download the spec's `Source0`/`SourceN` URLs (macro-resolved), by index or all |
 | `url` | Download an explicit URL not declared in the spec |
 | `git` | Clone a repo at a tag/branch/commit, archive the checkout (or a subdir) |
-| `vendor` | Generate a Go/npm/pnpm/yarn/Cargo/Composer vendor archive (multi-submodule aware, multi-arch for npm/pnpm/yarn). Set `bundled_provides: true` on JS ecosystems to expose lockfile dependency data as a step output for `bundled-provides` post steps |
+| `vendor` | Generate a Go/npm/pnpm/yarn/Cargo/Composer vendor archive (multi-submodule aware, multi-arch for npm/pnpm/yarn). JS ecosystems automatically parse lockfiles and expose dependency data as step outputs for `bundled-provides` post steps |
 
 ### `transform:`
 
@@ -259,7 +259,6 @@ fetch:
   - id: ui-deps
     type: vendor
     ecosystem: npm
-    bundled_provides: true
     modules:
       - path: "web/ui"
 
