@@ -1,6 +1,6 @@
 """`vendor-constraints`: confirm every vendored dependency meets its declared
-minimum version. Acts as a safety net for `vendor-pin` (confirms the pin took
-effect) and catches violations in packages that don't use `vendor-pin` at all --
+minimum version. Acts as a safety net for `vendor-bump` (confirms the pin took
+effect) and catches violations in packages that don't use `vendor-bump` at all --
 this check re-runs on every pipeline execution, so a later upstream update
 silently reverting a security fix fails closed instead of shipping quietly.
 """

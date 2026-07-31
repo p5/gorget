@@ -1,7 +1,7 @@
 Name:           demo
 Version:        1.0.0
 Release:        1%{?dist}
-Summary:        Demo package for gorget's vendor-pin/vendor transform steps
+Summary:        Demo package for gorget's vendor-bump/vendor transform steps
 License:        MIT
 URL:            https://example.com
 

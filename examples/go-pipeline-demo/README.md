@@ -8,7 +8,7 @@ repo:
 |---|---|
 | `fetch: git` | Clones `demo-repo/` |
 | `transform: strip-tarball` | Removes `docs/` from the source tarball |
-| `transform: vendor-pin` | Bumps `rsc.io/quote` from `v1.0.0` to `v1.5.2` |
+| `transform: vendor-bump` | Bumps `rsc.io/quote` from `v1.0.0` to `v1.5.2` |
 | `transform: vendor` | Vendors the now-bumped dependency (reused from `fetch:`) |
 | `transform: run` | Escape hatch: runs `go version`, archives the output file |
 
@@ -44,7 +44,7 @@ ls /tmp/gorget-demo-output
 # strip-tarball: docs/ is gone from the source tarball
 tar tzf /tmp/gorget-demo-output/demo-main.tar.gz | grep docs   # <- prints nothing
 
-# vendor-pin + vendor: rsc.io/quote bumped and actually vendored
+# vendor-bump + vendor: rsc.io/quote bumped and actually vendored
 tar tzf /tmp/gorget-demo-output/demo-vendor.tar.gz | grep quote
 
 # run: the escape-hatch command's declared output, archived verbatim

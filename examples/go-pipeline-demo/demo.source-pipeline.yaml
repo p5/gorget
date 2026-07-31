@@ -6,12 +6,12 @@ fetch:
 transform:
   # Remove docs/ from the source tarball before it's emitted. Note this only
   # affects the *archived copy* -- it doesn't touch the live checkout that
-  # vendor-pin/vendor/run operate against below.
+  # vendor-bump/vendor/run operate against below.
   - type: strip-tarball
     paths:
       - "*/docs"
 
-  - type: vendor-pin
+  - type: vendor-bump
     ecosystem: go
     pins:
       # Go module versions need the "v" prefix -- unlike npm/cargo, which
@@ -20,7 +20,7 @@ transform:
       - dependency: "rsc.io/quote"
         minimum-version: "v1.5.2"
 
-  # Re-vendor now that vendor-pin has bumped the dependency -- vendor is a
+  # Re-vendor now that vendor-bump has bumped the dependency -- vendor is a
   # legal step under both fetch: and transform:, reused unchanged either way.
   - type: vendor
     ecosystem: go

@@ -18,7 +18,7 @@ class StageState:
     report: PipelineReport
     artifacts: list[FetchedArtifact] = field(default_factory=list)
     # Set by FetchStage after a `git` step clones a checkout, so Transform can
-    # reuse it (e.g. for `vendor-pin`/`vendor`/`run` steps) without
+    # reuse it (e.g. for `vendor-bump`/`vendor`/`run` steps) without
     # re-extracting a tarball.
     source_dir: Path | None = None
 

@@ -11,7 +11,7 @@ from gorget.config.schema import (
     ToolchainEntry,
     UrlStep,
     VendorModule,
-    VendorPinStep,
+    VendorBumpStep,
     VendorStep,
 )
 
@@ -65,8 +65,8 @@ def test_strip_tarball_step_defaults():
     assert step.paths == []
 
 
-def test_vendor_pin_step_default_single_module():
-    step = VendorPinStep(ecosystem="go")
+def test_vendor_bump_step_default_single_module():
+    step = VendorBumpStep(ecosystem="go")
     assert step.modules == [VendorModule(path=".")]
     assert step.pins == []
 
