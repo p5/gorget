@@ -23,6 +23,7 @@ class MacroSubstitution:
 @dataclass(frozen=True, kw_only=True)
 class SpecUpdateStep:
     type: Literal["spec-update"] = "spec-update"
+    id: str | None = None
     set_version: bool = True
     reset_release: str | None = "1"
     substitutions: list[MacroSubstitution] = field(default_factory=list)
@@ -31,6 +32,7 @@ class SpecUpdateStep:
 @dataclass(frozen=True, kw_only=True)
 class SpecSourceStep:
     type: Literal["spec-source"] = "spec-source"
+    id: str | None = None
     index: int | None = None
     rename: str | None = None
 
@@ -38,6 +40,7 @@ class SpecSourceStep:
 @dataclass(frozen=True, kw_only=True)
 class UrlStep:
     type: Literal["url"] = "url"
+    id: str | None = None
     url: str
     filename: str | None = None
 
@@ -45,6 +48,7 @@ class UrlStep:
 @dataclass(frozen=True, kw_only=True)
 class GitStep:
     type: Literal["git"] = "git"
+    id: str | None = None
     repo: str
     ref: str
     shallow: bool = True
@@ -79,10 +83,12 @@ _DEFAULT_NPM_PLATFORMS: list[VendorPlatform] = [
 @dataclass(frozen=True, kw_only=True)
 class VendorStep:
     type: Literal["vendor"] = "vendor"
+    id: str | None = None
     ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo", "composer"]
     archive_name: str | None = None
     modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
     platforms: list[VendorPlatform] | None = None
+    bundled_provides: bool = False
 
 
 FetchStep = SpecUpdateStep | SpecSourceStep | UrlStep | GitStep | VendorStep
@@ -106,6 +112,7 @@ class ToolchainEntry:
 @dataclass(frozen=True, kw_only=True)
 class StripTarballStep:
     type: Literal["strip-tarball"] = "strip-tarball"
+    id: str | None = None
     target: str | None = None
     paths: list[str] = field(default_factory=list)
 
@@ -119,6 +126,7 @@ class VendorBumpEntry:
 @dataclass(frozen=True, kw_only=True)
 class VendorBumpStep:
     type: Literal["vendor-bump"] = "vendor-bump"
+    id: str | None = None
     ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo"]
     pins: list[VendorBumpEntry] = field(default_factory=list)
     modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
@@ -127,6 +135,7 @@ class VendorBumpStep:
 @dataclass(frozen=True, kw_only=True)
 class RunStep:
     type: Literal["run"] = "run"
+    id: str | None = None
     command: list[str] = field(default_factory=list)
     path: str = "."
     outputs: list[str] = field(default_factory=list)
@@ -250,6 +259,7 @@ class PatchesSection:
 @dataclass(frozen=True, kw_only=True)
 class PostRunStep:
     type: Literal["run"] = "run"
+    id: str | None = None
     command: list[str] = field(default_factory=list)
     # output_names of already-fetched/transformed artifacts this step needs to
     # read -- materialized into --package-dir under their output_name before
@@ -258,14 +268,18 @@ class PostRunStep:
     artifacts: list[str] = field(default_factory=list)
 
 
-# Room for a future ecosystem-aware step (e.g. `bundled-provides`, sketched in
-# the design doc) that extracts dependency versions from a vendor manifest and
-# splices them into the spec between markers -- `run` alone already covers
-# every real case migrated so far.
-PostStep = PostRunStep
+@dataclass(frozen=True, kw_only=True)
+class BundledProvidesStep:
+    type: Literal["bundled-provides"] = "bundled-provides"
+    id: str | None = None
+    input: str = ""
+
+
+PostStep = PostRunStep | BundledProvidesStep
 
 POST_STEP_TYPES: dict[str, type] = {
     "run": PostRunStep,
+    "bundled-provides": BundledProvidesStep,
 }
 
 

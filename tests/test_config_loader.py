@@ -242,3 +242,25 @@ def test_policy_defaults_when_section_absent():
     assert spec.policy.vendor_constraints == []
     assert spec.policy.audit is False
     assert spec.policy.license_compliance.disallowed == []
+
+
+def test_step_id_with_dots_rejected():
+    with pytest.raises(GorgetConfigError, match="invalid"):
+        parse_pipeline_spec({"fetch": [{"type": "vendor", "id": "npm.vendor", "ecosystem": "npm"}]})
+
+
+def test_duplicate_step_id_rejected():
+    with pytest.raises(GorgetConfigError, match="Duplicate"):
+        parse_pipeline_spec({
+            "fetch": [
+                {"type": "vendor", "id": "my-vendor", "ecosystem": "npm"},
+                {"type": "vendor", "id": "my-vendor", "ecosystem": "go"},
+            ],
+        })
+
+
+def test_step_id_valid_chars_accepted():
+    spec = parse_pipeline_spec({
+        "fetch": [{"type": "vendor", "id": "npm-vendor_1", "ecosystem": "npm"}],
+    })
+    assert spec.fetch[0].id == "npm-vendor_1"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from gorget.exceptions import GorgetConfigError
 from gorget.fetch.base import FetchedArtifact
@@ -21,6 +22,7 @@ class StageState:
     # reuse it (e.g. for `vendor-bump`/`vendor`/`run` steps) without
     # re-extracting a tarball.
     source_dir: Path | None = None
+    step_outputs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Same list object, not a copy: as FetchStage extends `artifacts`,
@@ -33,3 +35,24 @@ class StageState:
             if artifact.output_name == output_name:
                 return artifact
         raise GorgetConfigError(f"No fetched artifact named {output_name!r}")
+
+    def set_step_output(self, step_id: str, key: str, value: Any) -> None:
+        if step_id not in self.step_outputs:
+            self.step_outputs[step_id] = {}
+        self.step_outputs[step_id][key] = value
+
+    def get_step_output(self, dotpath: str) -> Any:
+        """Resolve 'steps.<id>.<key>.<subkey>' by walking the nested dict."""
+        parts = dotpath.split(".")
+        if parts[0] != "steps" or len(parts) < 3:
+            raise KeyError(f"invalid output reference: {dotpath}")
+        step_id = parts[1]
+        if step_id not in self.step_outputs:
+            raise KeyError(f"no outputs from step '{step_id}'")
+        current: Any = self.step_outputs[step_id]
+        for part in parts[2:]:
+            if isinstance(current, dict):
+                current = current[part]
+            else:
+                raise KeyError(f"cannot resolve '{part}' in {dotpath}")
+        return current

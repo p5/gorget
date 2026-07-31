@@ -64,6 +64,13 @@ class FetchStage:
             artifacts = handler.run(step, fetch_ctx)
             logger.debug("fetch step produced: %s", [a.output_name for a in artifacts])
             state.artifacts.extend(artifacts)
+            # If the handler populated last_outputs (e.g. VendorHandler with
+            # bundled_provides=True) and the step carries an id, persist the
+            # outputs so later ${{ steps.<id>.<key> }} expressions can resolve.
+            if hasattr(step, "id") and step.id:
+                if hasattr(handler, "last_outputs") and handler.last_outputs:
+                    for key, value in handler.last_outputs.items():
+                        state.set_step_output(step.id, key, value)
         # Survives past this method's return (unlike `fetch_ctx` itself) so a
         # later Transform stage can reuse the same checkout.
         state.source_dir = fetch_ctx.source_dir

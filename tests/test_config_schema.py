@@ -1,9 +1,11 @@
 from gorget.config.schema import (
     AcceptedChecksumEntry,
+    BundledProvidesStep,
     ChecksumFileStep,
     GitStep,
     GpgSignatureStep,
     PipelineSpec,
+    PostRunStep,
     RunStep,
     SpecSourceStep,
     SpecUpdateStep,
@@ -139,3 +141,48 @@ def test_default_npm_platforms():
     assert len(_DEFAULT_NPM_PLATFORMS) == 2
     assert _DEFAULT_NPM_PLATFORMS[0] == VendorPlatform(cpu="x64", os="linux", libc="glibc")
     assert _DEFAULT_NPM_PLATFORMS[1] == VendorPlatform(cpu="arm64", os="linux", libc="glibc")
+
+
+def test_step_id_defaults_to_none():
+    assert VendorStep(ecosystem="npm").id is None
+    assert RunStep(command=["echo"]).id is None
+    assert PostRunStep(command=["echo"]).id is None
+    assert SpecUpdateStep().id is None
+    assert SpecSourceStep().id is None
+    assert UrlStep(url="https://example.com").id is None
+    assert GitStep(repo="https://example.com", ref="v1").id is None
+    assert StripTarballStep().id is None
+    assert VendorBumpStep(ecosystem="go").id is None
+
+
+def test_step_id_can_be_set():
+    step = VendorStep(ecosystem="npm", id="npm-vendor")
+    assert step.id == "npm-vendor"
+    step2 = RunStep(command=["make"], id="build")
+    assert step2.id == "build"
+
+
+def test_vendor_step_bundled_provides_default_false():
+    step = VendorStep(ecosystem="npm")
+    assert step.bundled_provides is False
+
+
+def test_vendor_step_bundled_provides_true():
+    step = VendorStep(ecosystem="npm", bundled_provides=True)
+    assert step.bundled_provides is True
+
+
+def test_bundled_provides_step_defaults():
+    step = BundledProvidesStep()
+    assert step.type == "bundled-provides"
+    assert step.id is None
+    assert step.input == ""
+
+
+def test_bundled_provides_step_with_input():
+    step = BundledProvidesStep(
+        id="gen-provides",
+        input="${{ steps.npm-vendor.bundled_provides.production }}"
+    )
+    assert step.id == "gen-provides"
+    assert "${{" in step.input

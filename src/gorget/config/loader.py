@@ -56,6 +56,30 @@ _KNOWN_TOP_LEVEL_KEYS = {
 }
 
 
+import re
+
+_STEP_ID_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]*$")
+
+
+def _validate_step_ids(*step_lists: list) -> None:
+    seen: dict[str, str] = {}
+    for steps in step_lists:
+        for step in steps:
+            step_id = getattr(step, "id", None)
+            if step_id is None:
+                continue
+            if not _STEP_ID_RE.fullmatch(step_id):
+                raise GorgetConfigError(
+                    f"Step id {step_id!r} is invalid — must be alphanumeric, "
+                    f"hyphens, or underscores (no dots, no spaces)"
+                )
+            if step_id in seen:
+                raise GorgetConfigError(
+                    f"Duplicate step id {step_id!r} — each step id must be unique"
+                )
+            seen[step_id] = step_id
+
+
 def load_yaml(path: Path) -> dict:
     try:
         text = path.read_text()
@@ -251,6 +275,8 @@ def parse_pipeline_spec(raw: dict) -> PipelineSpec:
     accepted_checksum_entries = [
         _parse_accepted_checksum_entry(entry) for entry in raw_accepted_checksums
     ]
+
+    _validate_step_ids(fetch_steps, transform_steps, post_steps)
 
     return PipelineSpec(
         package=raw.get("package"),

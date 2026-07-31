@@ -7,6 +7,8 @@ which is all minimum-version gating actually needs.
 
 from __future__ import annotations
 
+import re
+
 
 def _parse(version: str) -> tuple[int, ...]:
     version = version.lstrip("vV")  # Go module versions are always "vX.Y.Z"
@@ -45,3 +47,12 @@ def satisfies_constraint(actual: str, constraint: str) -> bool:
     if constraint.startswith("~"):
         return matches_prefix(actual, constraint[1:])
     return meets_minimum(actual, constraint)
+
+
+def rpm_version(version: str) -> str:
+    """Convert npm semver to RPM-compatible version string."""
+    base, separator, prerelease = version.partition("-")
+    if separator:
+        prerelease = prerelease.lstrip("-._+~").replace("-", ".")
+        version = base + "~" + prerelease
+    return re.sub(r"([._+~])\1+", r"\1", version)

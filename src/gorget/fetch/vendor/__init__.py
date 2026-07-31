@@ -9,6 +9,8 @@ against the concrete `FetchContext`).
 
 from __future__ import annotations
 
+from typing import Any
+
 from gorget.config.schema import VendorStep
 from gorget.exceptions import GorgetConfigError
 from gorget.fetch.base import FetchedArtifact, build_artifact
@@ -33,7 +35,11 @@ _ECOSYSTEMS: dict[str, VendorEcosystem] = {
 
 
 class VendorHandler:
+    def __init__(self) -> None:
+        self.last_outputs: dict[str, Any] = {}
+
     def run(self, step: VendorStep, ctx: VendorRunContext) -> list[FetchedArtifact]:
+        self.last_outputs = {}
         ecosystem = _ECOSYSTEMS[step.ecosystem]
         archive_name = step.archive_name or f"{ctx.vars.package}-vendor.tar.gz"
         archive_path = ctx.work_dir / archive_name
@@ -59,5 +65,13 @@ class VendorHandler:
             ]
             mtime = commit_timestamp(ctx.source_dir)
             combine_vendor_archives(module_outputs, archive_path, mtime=mtime)
+
+            if step.bundled_provides and step.ecosystem in ("npm", "pnpm", "yarn"):
+                from gorget.fetch.vendor.lockfile import parse_bundled_provides
+
+                provides = parse_bundled_provides(
+                    step.ecosystem, ctx.source_dir, step.modules
+                )
+                self.last_outputs["bundled_provides"] = provides
 
         return [build_artifact(archive_path, archive_name, f"vendor:{step.ecosystem}", ctx.dry_run)]

@@ -1,6 +1,6 @@
 import pytest
 
-from gorget.config.schema import PipelineSpec, PostRunStep, PostSection
+from gorget.config.schema import BundledProvidesStep, PipelineSpec, PostRunStep, PostSection
 from gorget.config.substitution import SubstitutionVars
 from gorget.context import RunContext
 from gorget.exceptions import GorgetConfigError, GorgetTransientError
@@ -128,4 +128,63 @@ def test_unknown_artifact_name_raises_config_error(tmp_path):
         post=PostSection(steps=[PostRunStep(artifacts=["does-not-exist.tar.gz"], command=["true"])])
     )
     with pytest.raises(GorgetConfigError, match="does-not-exist.tar.gz"):
+        PostStage().run(ctx, spec, state)
+
+
+def test_bundled_provides_writes_inc_file(tmp_path):
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    # Simulate step outputs from a vendor step
+    state.set_step_output("npm-vendor", "bundled_provides", {
+        "production": [("lodash", "4.17.21"), ("react", "18.2.0")],
+    })
+    spec = PipelineSpec(
+        post=PostSection(steps=[
+            BundledProvidesStep(
+                id="gen-provides",
+                input="${{ steps.npm-vendor.bundled_provides.production }}",
+            )
+        ])
+    )
+    result = PostStage().run(ctx, spec, state)
+    assert result.status == "success"
+
+    inc_file = tmp_path / "bundled-npm-provides.inc"
+    assert inc_file.exists()
+    content = inc_file.read_text()
+    assert "Provides:       bundled(npm(lodash)) = 4.17.21" in content
+    assert "Provides:       bundled(npm(react)) = 18.2.0" in content
+
+
+def test_bundled_provides_rpm_version_conversion(tmp_path):
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    state.set_step_output("npm-vendor", "bundled_provides", {
+        "production": [("pkg", "1.0.0-beta.1")],
+    })
+    spec = PipelineSpec(
+        post=PostSection(steps=[
+            BundledProvidesStep(
+                input="${{ steps.npm-vendor.bundled_provides.production }}",
+            )
+        ])
+    )
+    PostStage().run(ctx, spec, state)
+    content = (tmp_path / "bundled-npm-provides.inc").read_text()
+    # Pre-release "1.0.0-beta.1" -> "1.0.0~beta.1" in RPM
+    assert "1.0.0~beta.1" in content
+
+
+def test_bundled_provides_non_list_input_raises(tmp_path):
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    state.set_step_output("npm-vendor", "version", "1.0.0")
+    spec = PipelineSpec(
+        post=PostSection(steps=[
+            BundledProvidesStep(
+                input="${{ steps.npm-vendor.version }}",
+            )
+        ])
+    )
+    with pytest.raises(GorgetTransientError, match="must resolve to a list"):
         PostStage().run(ctx, spec, state)

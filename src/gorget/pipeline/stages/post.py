@@ -25,13 +25,15 @@ import logging
 import shutil
 from typing import ClassVar
 
-from gorget.config.schema import PipelineSpec, PostRunStep
+from gorget.config.expression import resolve_expression
+from gorget.config.schema import BundledProvidesStep, PipelineSpec, PostRunStep
 from gorget.context import RunContext
 from gorget.exceptions import GorgetTransientError
 from gorget.pipeline.result import StageResult
 from gorget.pipeline.state import StageState
 from gorget.toolchain import wrap_command
 from gorget.util.subprocess_run import run
+from gorget.util.version import rpm_version
 
 logger = logging.getLogger("gorget.pipeline")
 
@@ -49,7 +51,10 @@ class PostStage:
             return StageResult(name=self.name, status="skipped", reason="dry-run")
 
         for step in spec.post.steps:
-            self._run_step(step, ctx, spec, state)
+            if isinstance(step, BundledProvidesStep):
+                self._run_bundled_provides(step, ctx, state)
+            else:
+                self._run_step(step, ctx, spec, state)
 
         return StageResult(name=self.name, status="success")
 
@@ -68,3 +73,28 @@ class PostStage:
                 f"post step ({' '.join(step.command)}) failed in {ctx.package_dir}: "
                 f"{result.stderr.strip()}"
             )
+
+    def _run_bundled_provides(
+        self, step: BundledProvidesStep, ctx: RunContext, state: StageState
+    ) -> None:
+        logger.debug("post step (bundled-provides): %s", step)
+        # Resolve the input expression to get the actual provides list
+        input_value = step.input
+        if "${{" in input_value:
+            input_value = resolve_expression(input_value, state.get_step_output)
+
+        if not isinstance(input_value, list):
+            raise GorgetTransientError(
+                f"bundled-provides input must resolve to a list, got: {type(input_value).__name__}"
+            )
+
+        # Generate Provides lines, sorted by package name
+        provides_lines = []
+        for name, version in sorted(input_value):
+            provides_lines.append(f"Provides:       bundled(npm({name})) = {rpm_version(version)}")
+
+        # Write the .inc file into --package-dir; the spec uses
+        # %include %{S:N} to import it -- gorget does not touch the spec.
+        inc_path = ctx.package_dir / "bundled-npm-provides.inc"
+        inc_path.write_text("\n".join(provides_lines) + "\n")
+        logger.debug("post step (bundled-provides): wrote %d lines to %s", len(provides_lines), inc_path)
