@@ -16,7 +16,7 @@ fetch:
 transform:
   # Remove docs/ from the source tarball before it's emitted. Note this only
   # affects the *archived copy* -- it doesn't touch the live checkout that
-  # vendor-pin/vendor/build-ui/run operate against below. `target` is required
+  # vendor-pin/vendor/run operate against below. `target` is required
   # here (unlike go-pipeline-demo) since multiple artifacts are now fetched --
   # no auto-select fallback once there's more than one to guess between.
   - type: strip-tarball
@@ -37,12 +37,6 @@ transform:
   # legal step under both fetch: and transform:, reused unchanged either way.
   - type: vendor
     ecosystem: go
-
-  - type: build-ui
-    ecosystem: npm
-    script: build
-    path: ui
-    output-dir: dist
 
   # Escape hatch: an arbitrary command, with declared outputs archived as new
   # artifacts afterward.

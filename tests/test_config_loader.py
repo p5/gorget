@@ -4,7 +4,6 @@ import pytest
 
 from gorget.config.loader import build_pipeline_spec, load_yaml, parse_pipeline_spec
 from gorget.config.schema import (
-    BuildUiStep,
     ChecksumFileStep,
     GitStep,
     GpgSignatureStep,
@@ -121,17 +120,6 @@ def test_transform_vendor_pin_then_vendor_sequencing():
     assert spec.transform.steps[0].pins[0].minimum_version == "0.23.0"
     assert isinstance(spec.transform.steps[1], VendorStep)
     assert spec.toolchain.entries == [ToolchainEntry(name="go", version="1.22.0")]
-
-
-def test_transform_build_ui_step_parses():
-    spec = build_pipeline_spec(
-        FIXTURES / "transform-build-ui.yaml", substitution_vars=make_vars()
-    )
-    step = spec.transform.steps[0]
-    assert isinstance(step, BuildUiStep)
-    assert step.ecosystem == "npm"
-    assert step.path == "ui"
-    assert step.output_dir == "dist"
 
 
 def test_transform_run_step_parses():

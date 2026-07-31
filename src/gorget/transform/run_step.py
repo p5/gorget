@@ -25,7 +25,7 @@ from gorget.util.subprocess_run import run
 
 class RunHandler:
     def run(self, step: RunStep, ctx: TransformContext, state: StageState) -> None:
-        # Unlike build-ui/vendor (one fixed, known-ahead-of-time archive name), a
+        # Unlike vendor (one fixed, known-ahead-of-time archive name), a
         # `run:` step's declared outputs could each be a file or a directory --
         # which one isn't knowable without actually running the command. So,
         # unlike those steps, dry-run here produces no placeholder artifacts at

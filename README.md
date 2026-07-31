@@ -74,10 +74,9 @@ Runs after `fetch:`, in declared order, against what was already fetched.
 | `strip-tarball` | Remove paths (glob patterns) from a fetched tarball and repack it |
 | `vendor-pin` | Bump a vendored dependency to a minimum version (Go/npm/Cargo) by editing its lockfile/manifest, before a later `vendor` step re-vendors |
 | `vendor` | Same step as `fetch:`'s `vendor` (reused) -- lets `vendor-pin` run before vendoring, since `fetch:` always runs before `transform:` |
-| `build-ui` | Run `npm`/`yarn run <script>` and archive the build output directory |
 | `run` | Escape hatch: an arbitrary command, with declared output paths archived as new artifacts afterward |
 
-`vendor-pin`/`vendor`/`build-ui`/`run` all operate against a shared working
+`vendor-pin`/`vendor`/`run` all operate against a shared working
 source tree: a `git` fetch step's checkout if one ran, otherwise the sole
 fetched artifact gets extracted on first use (an error if there's more than
 one and no way to tell which to use) -- unless a `run:` step declares
@@ -245,7 +244,7 @@ toolchain:
 ```
 
 Declares per-package tool version requirements for `vendor`/`vendor-pin`/
-`build-ui`/`run` steps. **This currently only validates -- it never fetches
+`run` steps. **This currently only validates -- it never fetches
 or switches versions.** Before any stage runs (even under `--dry-run`),
 gorget checks the declared version against whatever's already installed
 (e.g. `go version`), matching component-wise (`1.22` matches an installed

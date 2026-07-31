@@ -6,7 +6,7 @@ fetch:
 transform:
   # Remove docs/ from the source tarball before it's emitted. Note this only
   # affects the *archived copy* -- it doesn't touch the live checkout that
-  # vendor-pin/vendor/build-ui/run operate against below.
+  # vendor-pin/vendor/run operate against below.
   - type: strip-tarball
     paths:
       - "*/docs"
@@ -24,12 +24,6 @@ transform:
   # legal step under both fetch: and transform:, reused unchanged either way.
   - type: vendor
     ecosystem: go
-
-  - type: build-ui
-    ecosystem: npm
-    script: build
-    path: ui
-    output-dir: dist
 
   # Escape hatch: an arbitrary command, with declared outputs archived as new
   # artifacts afterward.

@@ -19,8 +19,8 @@ You need a real pipeline YAML as soon as any of these apply:
 
 - Sources come from a `git` clone rather than a tarball URL
 - You need a vendor archive (Go/npm/Cargo/Composer dependencies)
-- Something needs transforming after fetch (stripping paths, building UI
-  assets, running an arbitrary command)
+- Something needs transforming after fetch (stripping paths, running an
+  arbitrary command)
 - You want a checksum/signature check that isn't just the automatic
   re-publication guard (see below)
 - You want a policy check (CVE version floor, license compliance, audit)
@@ -83,7 +83,7 @@ violation) mean.
 |---|---|---|
 | Clone a git repo instead of downloading a tarball | `fetch: git` | [`go-pipeline-demo`](../../examples/go-pipeline-demo/) |
 | Vendor Go/npm/Cargo/Composer dependencies | `fetch: vendor` | [`go-pipeline-demo`](../../examples/go-pipeline-demo/) |
-| Strip paths from a fetched tarball, build UI assets, or run an arbitrary command | `transform:` | README [`transform:`](../../README.md#transform) |
+| Strip paths from a fetched tarball or run an arbitrary command | `transform:` | README [`transform:`](../../README.md#transform) |
 | Verify a GPG signature or a checksums-listing file | `verify:` | [`verify-demo`](../../examples/verify-demo/) |
 | Enforce a dependency version floor, license, or audit result | `policy:` | [Add a policy check to an existing pipeline](add-a-policy-check.md) |
 | Refresh generated metadata (e.g. a `Provides:` block) after everything else has run | `post:` | README [`post:`](../../README.md#post) |

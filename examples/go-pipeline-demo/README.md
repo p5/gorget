@@ -1,6 +1,6 @@
 # Example: full Transform stage pipeline (Go)
 
-Runnable, non-pytest example exercising every Transform step type gorget has,
+Runnable, non-pytest example exercising Transform step types gorget has,
 chained into one pipeline against a real Go module fetched from a local git
 repo:
 
@@ -10,10 +10,9 @@ repo:
 | `transform: strip-tarball` | Removes `docs/` from the source tarball |
 | `transform: vendor-pin` | Bumps `rsc.io/quote` from `v1.0.0` to `v1.5.2` |
 | `transform: vendor` | Vendors the now-bumped dependency (reused from `fetch:`) |
-| `transform: build-ui` | Runs `npm run build` in `ui/`, archives `dist/` |
 | `transform: run` | Escape hatch: runs `go version`, archives the output file |
 
-Requires `git`, `go`, and `npm` on `PATH`, plus network access to
+Requires `git` and `go` on `PATH`, plus network access to
 `proxy.golang.org`.
 
 ## 1. Set up the demo repo (once)
@@ -23,8 +22,7 @@ Requires `git`, `go`, and `npm` on `PATH`, plus network access to
 ```
 
 Creates `demo-repo/`: a tiny real Go module pinned to an old
-`rsc.io/quote v1.0.0`, a `docs/` dir to be stripped, and a minimal `ui/` npm
-project for `build-ui`.
+`rsc.io/quote v1.0.0` and a `docs/` dir to be stripped.
 
 ## 2. Run gorget
 
@@ -48,9 +46,6 @@ tar tzf /tmp/gorget-demo-output/demo-main.tar.gz | grep docs   # <- prints nothi
 
 # vendor-pin + vendor: rsc.io/quote bumped and actually vendored
 tar tzf /tmp/gorget-demo-output/demo-vendor.tar.gz | grep quote
-
-# build-ui: the built dist/ output, archived
-tar tzf /tmp/gorget-demo-output/demo-ui-assets.tar.gz
 
 # run: the escape-hatch command's declared output, archived verbatim
 cat /tmp/gorget-demo-output/go-version.txt

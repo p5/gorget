@@ -111,16 +111,6 @@ class VendorPinStep:
 
 
 @dataclass(frozen=True, kw_only=True)
-class BuildUiStep:
-    type: Literal["build-ui"] = "build-ui"
-    ecosystem: Literal["npm", "yarn"] = "npm"
-    script: str = "build"
-    path: str = "."
-    output_dir: str = "dist"
-    archive_name: str | None = None
-
-
-@dataclass(frozen=True, kw_only=True)
 class RunStep:
     type: Literal["run"] = "run"
     command: list[str] = field(default_factory=list)
@@ -151,12 +141,11 @@ class RunStep:
 # `vendor` is reused verbatim from the fetch schema: a `transform:` list can run
 # `vendor-pin` then `vendor` in order (edit lockfiles, then vendor) since Fetch's
 # own `vendor` step always runs before Transform and can't do that ordering itself.
-TransformStep = StripTarballStep | VendorPinStep | BuildUiStep | RunStep | VendorStep
+TransformStep = StripTarballStep | VendorPinStep | RunStep | VendorStep
 
 TRANSFORM_STEP_TYPES: dict[str, type] = {
     "strip-tarball": StripTarballStep,
     "vendor-pin": VendorPinStep,
-    "build-ui": BuildUiStep,
     "run": RunStep,
     "vendor": VendorStep,
 }

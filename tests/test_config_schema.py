@@ -1,6 +1,5 @@
 from gorget.config.schema import (
     AcceptedChecksumEntry,
-    BuildUiStep,
     ChecksumFileStep,
     GitStep,
     GpgSignatureStep,
@@ -70,14 +69,6 @@ def test_vendor_pin_step_default_single_module():
     step = VendorPinStep(ecosystem="go")
     assert step.modules == [VendorModule(path=".")]
     assert step.pins == []
-
-
-def test_build_ui_step_defaults():
-    step = BuildUiStep()
-    assert step.ecosystem == "npm"
-    assert step.script == "build"
-    assert step.path == "."
-    assert step.output_dir == "dist"
 
 
 def test_run_step_defaults():
