@@ -7,7 +7,7 @@ transform:
     ecosystem: go
     pins:
       - dependency: "golang.org/x/net"
-        minimum-version: "0.23.0"
+        version: "0.23.0"
   - type: vendor
     ecosystem: go
 toolchain:

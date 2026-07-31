@@ -30,9 +30,22 @@ transform:
     ecosystem: go
     pins:
       - dependency: "golang.org/x/net"
-        minimum-version: "0.23.0"
+        version: "0.23.0"     # >= 0.23.0
   - type: vendor
     ecosystem: go
+```
+
+The `version` field supports two constraint modes:
+
+- **Plain version** (e.g. `"0.23.0"`): minimum, meaning `>=0.23.0`
+- **Tilde prefix** (e.g. `"~4.18"`): pin to that prefix, meaning latest `4.18.x`
+
+```yaml
+pins:
+  - dependency: "golang.org/x/text"
+    version: "0.39.0"    # >= 0.39.0
+  - dependency: "lodash"
+    version: "~4.18"     # latest 4.18.x
 ```
 
 `vendor-bump` must come before the `vendor` step, and both belong in
