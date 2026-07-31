@@ -1,4 +1,4 @@
-"""Minimum-version comparison for vendor-pin/policy vendor-constraints.
+"""Minimum-version comparison for vendor-bump/policy vendor-constraints.
 
 Deliberately not a full semver implementation -- no pre-release ordering, no
 build-metadata semantics. Good enough for "is this CVE-fix version present,"

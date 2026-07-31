@@ -3,7 +3,7 @@ fetch:
     repo: "https://example.com/example.git"
     ref: "v${VERSION}"
 transform:
-  - type: vendor-pin
+  - type: vendor-bump
     ecosystem: go
     pins:
       - dependency: "golang.org/x/net"

@@ -129,13 +129,13 @@ Runs after `fetch:`, in declared order, against what was already fetched.
 | Step | Purpose |
 |---|---|
 | `strip-tarball` | Remove paths (glob patterns) from a fetched tarball and repack it |
-| `vendor-pin` | Bump a vendored dependency to a minimum version (Go/npm/Cargo) by editing its lockfile/manifest, before a later `vendor` step re-vendors |
-| `vendor` | Same step as `fetch:`'s `vendor` (reused) -- lets `vendor-pin` run before vendoring, since `fetch:` always runs before `transform:` |
+| `vendor-bump` | Bump a vendored dependency to a minimum version (Go/npm/pnpm/yarn/Cargo) by editing its lockfile/manifest, before a later `vendor` step re-vendors |
+| `vendor` | Same step as `fetch:`'s `vendor` (reused) -- lets `vendor-bump` run before vendoring, since `fetch:` always runs before `transform:` |
 | `build-ui` | Run `npm`/`yarn run <script>` and archive the build output directory |
 | `run` | Escape hatch: an arbitrary command, with declared output paths archived as new artifacts afterward |
 | `pack` | Archive an explicit list of files already in `--package-dir` into a single deterministic tarball, each at its own relative path |
 
-`vendor-pin`/`vendor`/`build-ui`/`run` all operate against a shared working
+`vendor-bump`/`vendor`/`build-ui`/`run` all operate against a shared working
 source tree: a `git` fetch step's checkout if one ran, otherwise the sole
 fetched artifact gets extracted on first use (an error if there's more than
 one and no way to tell which to use) -- unless a `run:` step declares
@@ -237,9 +237,9 @@ suppressing the check.
 ### `policy:`
 
 Runs after `verify:`, before Emit. Validates the *final vendored output* --
-acts as a safety net for `vendor-pin` (confirms a pin actually took effect)
-and catches violations in packages that don't use `vendor-pin` at all. Unlike
-`vendor-pin` (a one-time edit), this re-runs on every pipeline execution, so a
+acts as a safety net for `vendor-bump` (confirms a pin actually took effect)
+and catches violations in packages that don't use `vendor-bump` at all. Unlike
+`vendor-bump` (a one-time edit), this re-runs on every pipeline execution, so a
 later upstream update silently reverting a security fix fails the build
 instead of shipping quietly.
 
@@ -312,8 +312,8 @@ post:
 ```
 
 It reads `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock` from
-`<source>/<module.path>` -- the same checkout `vendor`/`vendor-pin` operate
-on, so the provides reflect any `vendor-pin` edits made earlier in the
+`<source>/<module.path>` -- the same checkout `vendor`/`vendor-bump` operate
+on, so the provides reflect any `vendor-bump` edits made earlier in the
 pipeline. Versions are normalised to RPM form (a semver pre-release
 `1.2.3-rc.1` becomes `1.2.3~rc.1`).
 
@@ -345,7 +345,7 @@ toolchain:
     version: 1.22.0
 ```
 
-Declares per-package tool version requirements for `vendor`/`vendor-pin`/
+Declares per-package tool version requirements for `vendor`/`vendor-bump`/
 `build-ui`/`run` steps. **This currently only validates -- it never fetches
 or switches versions.** Before any stage runs (even under `--dry-run`),
 gorget checks the declared version against whatever's already installed

@@ -33,7 +33,7 @@ from gorget.config.schema import (
     TransformStep,
     VendorConstraintEntry,
     VendorModule,
-    VendorPinEntry,
+    VendorBumpEntry,
     VendorPlatform,
     VerifySection,
     VerifyStep,
@@ -113,8 +113,8 @@ def _parse_transform_step(raw_step: object) -> TransformStep:
             f"{sorted(TRANSFORM_STEP_TYPES)})"
         )
     step_cls = TRANSFORM_STEP_TYPES[step_type]
-    if step_type == "vendor-pin" and "pins" in step:
-        step["pins"] = [VendorPinEntry(**_snake_case_keys(pin)) for pin in step["pins"]]
+    if step_type == "vendor-bump" and "pins" in step:
+        step["pins"] = [VendorBumpEntry(**_snake_case_keys(pin)) for pin in step["pins"]]
     if "modules" in step:
         step["modules"] = [VendorModule(**_snake_case_keys(mod)) for mod in step["modules"]]
     if step_type == "vendor" and "platforms" in step:

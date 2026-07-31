@@ -74,7 +74,7 @@ def _validate_gomod_patch_sync(package_dir: Path, config: _ArchiveConfig) -> Non
     catch it later (that check still matters for non-gorget packages, which
     never reach this code at all). See gomod_patch_sync.py's module
     docstring for the full mechanism -- the same check also runs from
-    transform/vendor_pin.py, since a `vendor-pin` step mutates go.mod the
+    transform/vendor_bump.py, since a `vendor-bump` step mutates go.mod the
     same way.
     """
     if not (_pre_commands_mutate_gomod(config.pre_commands) or config.dependency_overrides):
