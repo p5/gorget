@@ -40,6 +40,9 @@ class _VendorStepAdapter:
     def run(self, step: VendorStep, ctx: TransformContext, state: StageState) -> None:
         artifacts: list[FetchedArtifact] = _vendor_handler.run(step, ctx)
         state.artifacts.extend(artifacts)
+        if hasattr(step, "id") and step.id and _vendor_handler.last_outputs:
+            for key, value in _vendor_handler.last_outputs.items():
+                state.set_step_output(step.id, key, value)
 
 
 # See `fetch/stages/fetch.py` for why this dict is typed loosely rather than

@@ -19,11 +19,12 @@ from typing import Protocol
 
 from gorget.config.schema import ToolchainEntry, VendorBumpEntry, VendorBumpStep
 from gorget.exceptions import GorgetConfigError, GorgetTransientError
+from gorget.fetch.base import build_artifact
 from gorget.pipeline.state import StageState
 from gorget.policy.vendor_constraints import _RESOLVERS
 from gorget.toolchain import wrap_command
 from gorget.transform.base import TransformContext, ensure_source_dir
-from gorget.util.archive import repack_tar_gz
+from gorget.util.archive import extract_tar_gz, repack_tar_gz
 from gorget.util.subprocess_run import run
 from gorget.util.version import satisfies_constraint
 
@@ -236,14 +237,15 @@ class VendorBumpHandler:
                 applied_any = True
 
         if applied_any:
-            self._repack_source_tarball(state, source_dir)
+            self._repack_source_tarball(state, source_dir, ctx.work_dir)
 
     @staticmethod
-    def _repack_source_tarball(state: StageState, source_dir: Path) -> None:
+    def _repack_source_tarball(state: StageState, source_dir: Path, work_dir: Path) -> None:
         """Repack the source tarball with modified lockfiles.
 
-        Finds the git-fetched source tarball in state.artifacts and repacks
-        it from the (now modified) source tree. Same pattern as strip-tarball.
+        Extracts the existing tarball to a temp dir, overlays the modified
+        lockfiles from source_dir, and repacks. This preserves the tarball's
+        original internal directory structure (e.g. thanos-0.42.4/ prefix).
         """
         source_artifacts = [
             a for a in state.artifacts
@@ -255,5 +257,30 @@ class VendorBumpHandler:
             logger.info("vendor-bump: no source tarball to repack")
             return
         artifact = source_artifacts[0]
+        idx = state.artifacts.index(artifact)
         logger.info("vendor-bump: repacking %s with bumped lockfiles", artifact.output_name)
-        repack_tar_gz(source_dir, artifact.path)
+
+        import shutil
+        extract_dir = work_dir / "_vendor_bump_repack" / artifact.output_name
+        extract_tar_gz(artifact.path, extract_dir)
+
+        top_dirs = [d for d in extract_dir.iterdir() if d.is_dir()]
+        if len(top_dirs) == 1:
+            target = top_dirs[0]
+        else:
+            target = extract_dir
+
+        for src_file in source_dir.rglob("*"):
+            if not src_file.is_file():
+                continue
+            rel = src_file.relative_to(source_dir)
+            dest = target / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dest)
+
+        repack_tar_gz(extract_dir, artifact.path)
+        shutil.rmtree(extract_dir, ignore_errors=True)
+
+        state.artifacts[idx] = build_artifact(
+            artifact.path, artifact.output_name, artifact.source_description, False
+        )
