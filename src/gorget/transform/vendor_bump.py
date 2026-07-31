@@ -1,17 +1,21 @@
 """`vendor-bump` transform step: bump a vendored dependency to a minimum version by
 editing the ecosystem's lockfile/manifest -- before a later `vendor` step (also a
 legal step type under `transform:`) re-vendors against the updated constraint.
+
+When bumps are applied, the source tarball is repacked with the modified
+lockfiles so the RPM build sees consistent source + vendor archives. This
+follows the same pattern as strip-tarball.
 """
 
 from __future__ import annotations
 
+import difflib
 import json
+import logging
 import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
-
-import logging
 
 from gorget.config.schema import ToolchainEntry, VendorBumpEntry, VendorBumpStep
 from gorget.exceptions import GorgetConfigError, GorgetTransientError
@@ -19,6 +23,7 @@ from gorget.pipeline.state import StageState
 from gorget.policy.vendor_constraints import _RESOLVERS
 from gorget.toolchain import wrap_command
 from gorget.transform.base import TransformContext, ensure_source_dir
+from gorget.util.archive import repack_tar_gz
 from gorget.util.subprocess_run import run
 from gorget.util.version import satisfies_constraint
 
@@ -47,7 +52,6 @@ class _GoPin:
         self, module_dir: Path, entry: VendorBumpEntry, toolchain: Sequence[ToolchainEntry]
     ) -> None:
         mode, ver = _parse_constraint(entry.version)
-        # Both modes use the same Go command — Go's MVS naturally picks latest matching.
         require = f"-require={entry.dependency}@{ver}"
         result = run(wrap_command(["go", "mod", "edit", require], toolchain), cwd=module_dir)
         if result.returncode != 0:
@@ -189,6 +193,14 @@ class _YarnPin:
             )
 
 
+_LOCKFILES: dict[str, list[str]] = {
+    "go": ["go.mod", "go.sum"],
+    "npm": ["package.json", "package-lock.json"],
+    "pnpm": ["package.json", "pnpm-lock.yaml"],
+    "yarn": ["package.json", "yarn.lock"],
+    "cargo": ["Cargo.toml", "Cargo.lock"],
+}
+
 _STRATEGIES: dict[str, _PinStrategy] = {
     "go": _GoPin(),
     "npm": _NpmPin(),
@@ -203,6 +215,8 @@ class VendorBumpHandler:
         if ctx.dry_run:
             return
         source_dir = ensure_source_dir(ctx, state)
+
+        applied_any = False
         strategy = _STRATEGIES[step.ecosystem]
         resolve = _RESOLVERS.get(step.ecosystem)
         for module in step.modules:
@@ -217,3 +231,24 @@ class VendorBumpHandler:
                         )
                         continue
                 strategy.apply(module_dir, entry, ctx.toolchain)
+                applied_any = True
+
+        if applied_any:
+            self._repack_source_tarball(state, source_dir)
+
+    @staticmethod
+    def _repack_source_tarball(state: StageState, source_dir: Path) -> None:
+        """Repack the source tarball with modified lockfiles.
+
+        Finds the git-fetched source tarball in state.artifacts and repacks
+        it from the (now modified) source tree. Same pattern as strip-tarball.
+        """
+        source_artifacts = [
+            a for a in state.artifacts if a.source_description == "git"
+        ]
+        if not source_artifacts:
+            logger.info("vendor-bump: no git-fetched source tarball to repack")
+            return
+        artifact = source_artifacts[0]
+        logger.info("vendor-bump: repacking %s with bumped lockfiles", artifact.output_name)
+        repack_tar_gz(source_dir, artifact.path)
