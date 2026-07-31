@@ -27,6 +27,7 @@ def test_pnpm_vendor_runs_fetch_with_store_dir(tmp_path, mocker):
                 "--store-dir", str(store_dir),
             ],
             cwd=tmp_path,
+            env={"CI": "true"},
         ),
     ]
     assert result == store_dir

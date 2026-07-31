@@ -25,7 +25,7 @@ class PnpmVendor:
             "--frozen-lockfile",
             "--store-dir", str(store_dir),
         ]
-        result = run(wrap_command(cmd, toolchain), cwd=module_dir)
+        result = run(wrap_command(cmd, toolchain), cwd=module_dir, env={"CI": "true"})
         if result.returncode != 0:
             raise GorgetTransientError(
                 f"pnpm fetch failed in {module_dir}: {result.stderr.strip()}"
