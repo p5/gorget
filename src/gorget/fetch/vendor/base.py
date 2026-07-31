@@ -3,7 +3,7 @@
 `VendorHandler`/`VendorEcosystem` are typed against `VendorRunContext` (a Protocol)
 rather than the concrete `FetchContext` so the exact same vendor step/ecosystem code
 can run from either the Fetch stage's `vendor` step or the Transform stage's `vendor`
-step (reused there to let `vendor-pin` edit lockfiles before vendoring runs).
+step (reused there to let `vendor-bump` edit lockfiles before vendoring runs).
 """
 
 from __future__ import annotations

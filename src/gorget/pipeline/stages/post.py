@@ -62,7 +62,7 @@ class PostStage:
         self, step: BundledProvidesStep, ctx: RunContext, state: StageState
     ) -> None:
         # Parse straight from the fetched source tree -- the same checkout
-        # `vendor`/`vendor-pin` operate on, so provides reflect any bumps.
+        # `vendor`/`vendor-bump` operate on, so provides reflect any bumps.
         if state.source_dir is None:
             raise GorgetTransientError(
                 "bundled-provides step requires a source checkout -- add a preceding "

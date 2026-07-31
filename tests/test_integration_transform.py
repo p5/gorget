@@ -3,7 +3,7 @@
 Clones a local git repo containing a real (tiny, stable) Go module, pins one
 of its dependencies to a newer minimum version, and vendors it -- using the
 actual `git` and `go` binaries, not mocked subprocess calls. This is also a
-runnable example of the fetch -> transform (`vendor-pin` -> `vendor`) pipeline
+runnable example of the fetch -> transform (`vendor-bump` -> `vendor`) pipeline
 YAML syntax; read `PIPELINE_YAML` below.
 
 Requires `git` and `go` on PATH, plus network access to the real Go module
@@ -35,7 +35,7 @@ requires_git_and_go = pytest.mark.skipif(
 )
 
 # rsc.io/quote is the tiny, extremely stable module used in the official Go
-# tutorials -- a safe, real-world dependency to demonstrate vendor-pin against.
+# tutorials -- a safe, real-world dependency to demonstrate vendor-bump against.
 PIPELINE_YAML = """
 fetch:
   - type: git
@@ -43,7 +43,7 @@ fetch:
     ref: "main"
 
 transform:
-  - type: vendor-pin
+  - type: vendor-bump
     ecosystem: go
     pins:
       # Go module versions need the "v" prefix -- unlike npm/cargo, which
@@ -64,7 +64,7 @@ def _run_git(args: list[str], cwd: Path) -> None:
 @pytest.fixture
 def demo_go_repo(tmp_path: Path) -> Path:
     """A tiny local git repo with a real Go module pinned to an old version
-    of rsc.io/quote, so `vendor-pin` has something real to bump.
+    of rsc.io/quote, so `vendor-bump` has something real to bump.
     """
     repo_dir = tmp_path / "demo-repo"
     repo_dir.mkdir()
@@ -94,7 +94,7 @@ def make_ctx(package_dir: Path, output_dir: Path, pipeline_yaml: str):
     (package_dir / "demo.spec").write_text(
         "Name: demo\nVersion: 1.0.0\nRelease: 1\nPatch0: 0001-bump-quote.patch\n"
     )
-    # vendor-pin mutates go.mod in the checkout -- gomod_patch_sync.py requires a
+    # vendor-bump mutates go.mod in the checkout -- gomod_patch_sync.py requires a
     # spec patch replicating that onto the real build tree, or it fails closed.
     (package_dir / "0001-bump-quote.patch").write_text(
         "--- a/go.mod\n+++ b/go.mod\n@@ -1 +1 @@\n-old\n+new\n"
@@ -116,7 +116,7 @@ def make_ctx(package_dir: Path, output_dir: Path, pipeline_yaml: str):
 
 @pytest.mark.integration
 @requires_git_and_go
-def test_git_fetch_vendor_pin_vendor_with_real_tools(tmp_path, demo_go_repo, capsys):
+def test_git_fetch_vendor_bump_vendor_with_real_tools(tmp_path, demo_go_repo, capsys):
     pipeline_yaml = PIPELINE_YAML.format(repo=str(demo_go_repo))
     ctx = make_ctx(tmp_path / "pkg", tmp_path / "output", pipeline_yaml)
 

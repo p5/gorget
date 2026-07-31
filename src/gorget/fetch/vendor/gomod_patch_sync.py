@@ -2,8 +2,8 @@
 `git` fetch step archives `Source0` from the checkout *before* anything else
 gets a chance to mutate it, so any later step that rewrites `go.mod`/`go.sum`
 in that same checkout -- `go-vendor-tools.toml`'s `pre_commands`/
-`dependency_overrides` (see `fetch/vendor/go.py`), or a `transform: vendor-pin`
-step (see `transform/vendor_pin.py`) -- only affects the vendor archive, never
+`dependency_overrides` (see `fetch/vendor/go.py`), or a `transform: vendor-bump`
+step (see `transform/vendor_bump.py`) -- only affects the vendor archive, never
 the plain source tarball. Without an equivalent spec patch, the actual build
 tree (Source0 + patches) and the generated vendor archive end up requiring
 different versions of the same dependency, which `go build -mod=vendor`
