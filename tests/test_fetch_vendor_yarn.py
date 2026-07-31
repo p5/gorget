@@ -1,7 +1,9 @@
 import subprocess
 
 import pytest
+import yaml
 
+from gorget.config.schema import VendorPlatform
 from gorget.exceptions import GorgetTransientError
 from gorget.fetch.vendor.yarn import YarnVendor
 
@@ -24,6 +26,7 @@ def test_yarn_vendor_runs_install_with_cache_folder(tmp_path, mocker):
             [
                 "yarn", "install",
                 "--frozen-lockfile",
+                "--ignore-scripts",
                 "--cache-folder", str(cache_dir),
             ],
             cwd=tmp_path,
@@ -32,11 +35,38 @@ def test_yarn_vendor_runs_install_with_cache_folder(tmp_path, mocker):
     assert result == cache_dir
 
 
+def test_yarn_vendor_writes_yarnrc_yml_with_supported_architectures(tmp_path, mocker):
+    mocker.patch("gorget.fetch.vendor.yarn.run", return_value=_ok())
+    YarnVendor().vendor(tmp_path)
+    yarnrc = tmp_path / ".yarnrc.yml"
+    assert yarnrc.exists()
+    data = yaml.safe_load(yarnrc.read_text())
+    assert data["supportedArchitectures"]["cpu"] == ["arm64", "x64"]
+    assert data["supportedArchitectures"]["os"] == ["linux"]
+    assert data["supportedArchitectures"]["libc"] == ["glibc"]
+
+
+def test_yarn_vendor_merges_existing_yarnrc_yml(tmp_path, mocker):
+    mocker.patch("gorget.fetch.vendor.yarn.run", return_value=_ok())
+    (tmp_path / ".yarnrc.yml").write_text("nodeLinker: node-modules\n")
+    YarnVendor().vendor(tmp_path)
+    data = yaml.safe_load((tmp_path / ".yarnrc.yml").read_text())
+    assert data["nodeLinker"] == "node-modules"
+    assert "supportedArchitectures" in data
+
+
+def test_yarn_vendor_custom_platforms(tmp_path, mocker):
+    mocker.patch("gorget.fetch.vendor.yarn.run", return_value=_ok())
+    platforms = [VendorPlatform(cpu="s390x", os="linux", libc="glibc")]
+    YarnVendor().vendor(tmp_path, platforms=platforms)
+    data = yaml.safe_load((tmp_path / ".yarnrc.yml").read_text())
+    assert data["supportedArchitectures"]["cpu"] == ["s390x"]
+
+
 def test_yarn_vendor_cleans_node_modules(tmp_path, mocker):
     node_modules = tmp_path / "node_modules"
 
     def create_node_modules(*args, **kwargs):
-        """Simulate yarn install creating node_modules."""
         node_modules.mkdir(exist_ok=True)
         return _ok()
 
