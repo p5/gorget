@@ -27,12 +27,23 @@ def _resolve_go_version(module_dir: Path, package: str) -> str | None:
 
 
 def _resolve_npm_version(module_dir: Path, package: str) -> str | None:
+    lockfile = module_dir / "package-lock.json"
+    if lockfile.is_file():
+        data = json.loads(lockfile.read_text())
+        for path, pkg in data.get("packages", {}).items():
+            if not path or "node_modules/" not in path:
+                continue
+            name = pkg.get("name") or path.rsplit("node_modules/", 1)[1]
+            if name == package:
+                version = pkg.get("version")
+                if isinstance(version, str):
+                    return version
     package_json = module_dir / "node_modules" / package / "package.json"
-    if not package_json.is_file():
-        return None
-    data = json.loads(package_json.read_text())
-    version = data.get("version")
-    return version if isinstance(version, str) else None
+    if package_json.is_file():
+        data = json.loads(package_json.read_text())
+        version = data.get("version")
+        return version if isinstance(version, str) else None
+    return None
 
 
 def _resolve_cargo_version(module_dir: Path, package: str) -> str | None:
@@ -54,9 +65,32 @@ def _resolve_cargo_version(module_dir: Path, package: str) -> str | None:
     return max(versions, key=lambda v: tuple(int(p) for p in v.split(".") if p.isdigit()))
 
 
+def _resolve_pnpm_version(module_dir: Path, package: str) -> str | None:
+    lockfile = module_dir / "pnpm-lock.yaml"
+    if not lockfile.is_file():
+        return None
+    import yaml
+    data = yaml.safe_load(lockfile.read_text())
+    for snapshot_key in data.get("snapshots", {}):
+        key = snapshot_key.split("(", 1)[0]
+        name, _, version = key.rpartition("@")
+        if name == package and version:
+            return version
+    return None
+
+
+def _resolve_yarn_version(module_dir: Path, package: str) -> str | None:
+    lockfile = module_dir / "package-lock.json"
+    if lockfile.is_file():
+        return _resolve_npm_version(module_dir, package)
+    return None
+
+
 _RESOLVERS = {
     "go": _resolve_go_version,
     "npm": _resolve_npm_version,
+    "pnpm": _resolve_pnpm_version,
+    "yarn": _resolve_yarn_version,
     "cargo": _resolve_cargo_version,
 }
 

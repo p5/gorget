@@ -10,7 +10,7 @@ from gorget.toolchain import wrap_command
 from gorget.util.subprocess_run import run
 
 
-class NpmVendor:
+class PnpmVendor:
     def vendor(
         self,
         module_dir: Path,
@@ -20,28 +20,28 @@ class NpmVendor:
         platforms: Sequence[VendorPlatform] = (),
     ) -> Path:
         resolved = platforms or _DEFAULT_NPM_PLATFORMS
-        cache_dir = module_dir / ".npm-cache"
-        cache_dir.mkdir(exist_ok=True)
+        store_dir = module_dir / ".pnpm-store"
+        store_dir.mkdir(exist_ok=True)
         for platform in resolved:
             cmd = [
-                "npm", "install",
-                "--ignore-scripts", "--no-audit", "--no-fund",
-                "--cache", str(cache_dir),
+                "pnpm", "install",
+                "--ignore-scripts", "--frozen-lockfile",
+                "--store-dir", str(store_dir),
                 "--cpu", platform.cpu,
                 "--os", platform.os,
-                "--libc", platform.libc,
             ]
-            result = run(wrap_command(cmd, toolchain), cwd=module_dir)
+            result = run(
+                wrap_command(cmd, toolchain), cwd=module_dir, env={"CI": "true"}
+            )
             if result.returncode != 0:
                 raise GorgetTransientError(
-                    f"npm install failed for {platform.cpu}/{platform.os}/{platform.libc} "
+                    f"pnpm install failed for {platform.cpu}/{platform.os} "
                     f"in {module_dir}: {result.stderr.strip()}"
                 )
-            # Clean node_modules between platform iterations
             node_modules = module_dir / "node_modules"
             if node_modules.exists():
                 shutil.rmtree(node_modules)
-        return cache_dir
+        return store_dir
 
     def archive_root_files(self, module_dir: Path) -> list[Path]:
         return []

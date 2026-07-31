@@ -69,11 +69,25 @@ class VendorModule:
 
 
 @dataclass(frozen=True, kw_only=True)
+class VendorPlatform:
+    cpu: str    # "x64", "arm64"
+    os: str     # "linux"
+    libc: str   # "glibc"
+
+
+_DEFAULT_NPM_PLATFORMS: list[VendorPlatform] = [
+    VendorPlatform(cpu="x64", os="linux", libc="glibc"),
+    VendorPlatform(cpu="arm64", os="linux", libc="glibc"),
+]
+
+
+@dataclass(frozen=True, kw_only=True)
 class VendorStep:
     type: Literal["vendor"] = "vendor"
-    ecosystem: Literal["go", "npm", "cargo", "composer"]
+    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo", "composer"]
     archive_name: str | None = None
     modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
+    platforms: list[VendorPlatform] | None = None
 
 
 FetchStep = SpecUpdateStep | SpecSourceStep | UrlStep | GitStep | VendorStep
@@ -125,7 +139,7 @@ class VendorPinEntry:
 @dataclass(frozen=True, kw_only=True)
 class VendorPinStep:
     type: Literal["vendor-pin"] = "vendor-pin"
-    ecosystem: Literal["go", "npm", "cargo"]
+    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo"]
     pins: list[VendorPinEntry] = field(default_factory=list)
     modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
 
@@ -239,7 +253,7 @@ class AcceptedChecksumsSection:
 @dataclass(frozen=True, kw_only=True)
 class VendorConstraintEntry:
     package: str
-    ecosystem: Literal["go", "npm", "cargo"]
+    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo"]
     # Minimum version -- "at least this version," same semantics as vendor-pin.
     version: str
     reason: str

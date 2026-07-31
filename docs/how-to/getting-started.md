@@ -18,7 +18,7 @@ That's it -- no YAML to write or maintain.
 You need a real pipeline YAML as soon as any of these apply:
 
 - Sources come from a `git` clone rather than a tarball URL
-- You need a vendor archive (Go/npm/Cargo/Composer dependencies)
+- You need a vendor archive (Go/npm/pnpm/yarn/Cargo/Composer dependencies)
 - Something needs transforming after fetch (stripping paths, building UI
   assets, running an arbitrary command)
 - You want a checksum/signature check that isn't just the automatic
@@ -100,7 +100,7 @@ violation) mean.
 | You need to... | Add | See |
 |---|---|---|
 | Clone a git repo instead of downloading a tarball | `fetch: git` | [`go-pipeline-demo`](../../examples/go-pipeline-demo/), or [`native-cargo-demo`](../../examples/native-cargo-demo/) for the minimal git-only case |
-| Vendor Go/npm/Cargo/Composer dependencies | `fetch: vendor` | [`go-pipeline-demo`](../../examples/go-pipeline-demo/) (Go), [`native-cargo-demo`](../../examples/native-cargo-demo/) (Cargo) |
+| Vendor Go/npm/pnpm/yarn/Cargo/Composer dependencies | `fetch: vendor` | [`go-pipeline-demo`](../../examples/go-pipeline-demo/) (Go), [`native-cargo-demo`](../../examples/native-cargo-demo/) (Cargo) |
 | Clone a *private* repo | `fetch: git` + ambient git auth | [Fetch from a private git repo](fetch-from-a-private-repo.md) |
 | Strip paths from a fetched tarball, build UI assets, pack an explicit file list into an archive, or run an arbitrary command | `transform:` | README [`transform:`](../../README.md#transform) |
 | Verify a GPG signature or a checksums-listing file | `verify:` | [`verify-demo`](../../examples/verify-demo/) |
