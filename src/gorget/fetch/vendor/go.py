@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from gorget.config.schema import ToolchainEntry
+from gorget.config.schema import ToolchainEntry, VendorPlatform
 from gorget.exceptions import GorgetTransientError
 from gorget.fetch.vendor.gomod_patch_sync import raise_unless_spec_patches_gomod
 from gorget.toolchain import wrap_command
@@ -97,6 +97,7 @@ class GoVendor:
         toolchain: Sequence[ToolchainEntry] = (),
         package_dir: Path | None = None,
         use_workspace: bool = True,
+        platforms: Sequence[VendorPlatform] = (),
     ) -> Path:
         config = _load_archive_config(package_dir)
         if package_dir is not None:

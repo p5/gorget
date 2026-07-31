@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
 
-from gorget.config.schema import ToolchainEntry
+from gorget.config.schema import ToolchainEntry, VendorPlatform
 from gorget.config.substitution import SubstitutionVars
 
 
@@ -32,6 +32,7 @@ class VendorEcosystem(Protocol):
         toolchain: Sequence[ToolchainEntry] = (),
         package_dir: Path | None = None,
         use_workspace: bool = True,
+        platforms: Sequence[VendorPlatform] = (),
     ) -> Path:
         """Run the ecosystem's vendor command against `module_dir` and return the
         path to the produced vendor directory.
