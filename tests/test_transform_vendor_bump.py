@@ -3,13 +3,19 @@ import subprocess
 
 import pytest
 
-from gorget.config.schema import ToolchainEntry, VendorModule, VendorBumpEntry, VendorBumpStep
+from gorget.config.schema import ToolchainEntry, VendorBumpEntry, VendorBumpStep, VendorModule
 from gorget.config.substitution import SubstitutionVars
 from gorget.exceptions import GorgetConfigError, GorgetTransientError
 from gorget.pipeline.result import PipelineReport
 from gorget.pipeline.state import StageState
 from gorget.transform.base import TransformContext
-from gorget.transform.vendor_bump import VendorBumpHandler, _CargoPin, _GoPin, _NpmPin
+from gorget.transform.vendor_bump import (
+    VendorBumpHandler,
+    _CargoPin,
+    _GoPin,
+    _NpmPin,
+    _parse_constraint,
+)
 
 
 def _ok():
@@ -43,7 +49,7 @@ def make_state(work_dir):
 
 def test_go_pin_runs_edit_then_tidy(tmp_path, mocker):
     mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
-    entry = VendorBumpEntry(dependency="golang.org/x/net", minimum_version="0.23.0")
+    entry = VendorBumpEntry(dependency="golang.org/x/net", version="0.23.0")
     _GoPin().apply(tmp_path, entry, [])
     assert mock_run.call_args_list[0].args[0] == [
         "go", "mod", "edit", "-require=golang.org/x/net@0.23.0",
@@ -55,7 +61,7 @@ def test_go_pin_toolchain_param_does_not_change_command(tmp_path, mocker):
     # toolchain activation isn't implemented yet (gorget/toolchain.py); the
     # param is accepted but wrap_command() is currently a no-op passthrough.
     mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
-    entry = VendorBumpEntry(dependency="golang.org/x/net", minimum_version="0.23.0")
+    entry = VendorBumpEntry(dependency="golang.org/x/net", version="0.23.0")
     _GoPin().apply(tmp_path, entry, [ToolchainEntry(name="go", version="1.22.0")])
     assert mock_run.call_args_list[0].args[0] == [
         "go", "mod", "edit", "-require=golang.org/x/net@0.23.0",
@@ -64,7 +70,7 @@ def test_go_pin_toolchain_param_does_not_change_command(tmp_path, mocker):
 
 def test_go_pin_edit_failure_raises(tmp_path, mocker):
     mocker.patch("gorget.transform.vendor_bump.run", return_value=_fail("bad module"))
-    entry = VendorBumpEntry(dependency="x", minimum_version="1.0.0")
+    entry = VendorBumpEntry(dependency="x", version="1.0.0")
     with pytest.raises(GorgetTransientError, match="bad module"):
         _GoPin().apply(tmp_path, entry, [])
 
@@ -73,7 +79,7 @@ def test_go_pin_tidy_failure_raises(tmp_path, mocker):
     mocker.patch(
         "gorget.transform.vendor_bump.run", side_effect=[_ok(), _fail("tidy broke")]
     )
-    entry = VendorBumpEntry(dependency="x", minimum_version="1.0.0")
+    entry = VendorBumpEntry(dependency="x", version="1.0.0")
     with pytest.raises(GorgetTransientError, match="tidy broke"):
         _GoPin().apply(tmp_path, entry, [])
 
@@ -86,7 +92,7 @@ def test_npm_pin_edits_dependencies_and_installs(tmp_path, mocker):
         json.dumps({"dependencies": {"left-pad": "^1.0.0"}})
     )
     mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
-    entry = VendorBumpEntry(dependency="left-pad", minimum_version="1.3.0")
+    entry = VendorBumpEntry(dependency="left-pad", version="1.3.0")
     _NpmPin().apply(tmp_path, entry, [])
 
     data = json.loads((tmp_path / "package.json").read_text())
@@ -100,21 +106,21 @@ def test_npm_pin_edits_dev_dependencies(tmp_path, mocker):
         json.dumps({"devDependencies": {"eslint": "^8.0.0"}})
     )
     mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
-    entry = VendorBumpEntry(dependency="eslint", minimum_version="9.0.0")
+    entry = VendorBumpEntry(dependency="eslint", version="9.0.0")
     _NpmPin().apply(tmp_path, entry, [])
     data = json.loads((tmp_path / "package.json").read_text())
     assert data["devDependencies"]["eslint"] == ">=9.0.0"
 
 
 def test_npm_pin_missing_package_json_raises(tmp_path):
-    entry = VendorBumpEntry(dependency="x", minimum_version="1.0.0")
+    entry = VendorBumpEntry(dependency="x", version="1.0.0")
     with pytest.raises(GorgetConfigError, match="no package.json"):
         _NpmPin().apply(tmp_path, entry, [])
 
 
 def test_npm_pin_dependency_not_found_raises(tmp_path):
     (tmp_path / "package.json").write_text(json.dumps({"dependencies": {}}))
-    entry = VendorBumpEntry(dependency="missing-pkg", minimum_version="1.0.0")
+    entry = VendorBumpEntry(dependency="missing-pkg", version="1.0.0")
     with pytest.raises(GorgetConfigError, match="missing-pkg"):
         _NpmPin().apply(tmp_path, entry, [])
 
@@ -122,7 +128,7 @@ def test_npm_pin_dependency_not_found_raises(tmp_path):
 def test_npm_pin_install_failure_raises(tmp_path, mocker):
     (tmp_path / "package.json").write_text(json.dumps({"dependencies": {"x": "^1.0.0"}}))
     mocker.patch("gorget.transform.vendor_bump.run", return_value=_fail("npm error"))
-    entry = VendorBumpEntry(dependency="x", minimum_version="1.0.0")
+    entry = VendorBumpEntry(dependency="x", version="1.0.0")
     with pytest.raises(GorgetTransientError, match="npm error"):
         _NpmPin().apply(tmp_path, entry, [])
 
@@ -135,7 +141,7 @@ def test_cargo_pin_edits_toml_and_updates(tmp_path, mocker):
         '[dependencies]\nserde = "1.0.0"\nlibc = "0.2.0"\n'
     )
     mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
-    entry = VendorBumpEntry(dependency="serde", minimum_version="1.0.190")
+    entry = VendorBumpEntry(dependency="serde", version="1.0.190")
     _CargoPin().apply(tmp_path, entry, [])
 
     text = (tmp_path / "Cargo.toml").read_text()
@@ -145,14 +151,14 @@ def test_cargo_pin_edits_toml_and_updates(tmp_path, mocker):
 
 
 def test_cargo_pin_missing_toml_raises(tmp_path):
-    entry = VendorBumpEntry(dependency="serde", minimum_version="1.0.0")
+    entry = VendorBumpEntry(dependency="serde", version="1.0.0")
     with pytest.raises(GorgetConfigError, match="no Cargo.toml"):
         _CargoPin().apply(tmp_path, entry, [])
 
 
 def test_cargo_pin_dependency_not_found_raises(tmp_path):
     (tmp_path / "Cargo.toml").write_text('[dependencies]\nlibc = "0.2.0"\n')
-    entry = VendorBumpEntry(dependency="serde", minimum_version="1.0.0")
+    entry = VendorBumpEntry(dependency="serde", version="1.0.0")
     with pytest.raises(GorgetConfigError, match="not found as a simple inline dependency"):
         _CargoPin().apply(tmp_path, entry, [])
 
@@ -160,7 +166,7 @@ def test_cargo_pin_dependency_not_found_raises(tmp_path):
 def test_cargo_pin_update_failure_raises(tmp_path, mocker):
     (tmp_path / "Cargo.toml").write_text('[dependencies]\nserde = "1.0.0"\n')
     mocker.patch("gorget.transform.vendor_bump.run", return_value=_fail("cargo error"))
-    entry = VendorBumpEntry(dependency="serde", minimum_version="1.0.190")
+    entry = VendorBumpEntry(dependency="serde", version="1.0.190")
     with pytest.raises(GorgetTransientError, match="cargo error"):
         _CargoPin().apply(tmp_path, entry, [])
 
@@ -178,7 +184,7 @@ def test_handler_applies_pins_per_module(tmp_path, mocker):
     state = make_state(tmp_path / "work")
     step = VendorBumpStep(
         ecosystem="go",
-        pins=[VendorBumpEntry(dependency="x", minimum_version="1.0.0")],
+        pins=[VendorBumpEntry(dependency="x", version="1.0.0")],
         modules=[VendorModule(path="server")],
     )
     VendorBumpHandler().run(step, ctx, state)
@@ -192,7 +198,121 @@ def test_handler_dry_run_does_nothing(tmp_path, mocker):
     ctx = make_ctx(tmp_path / "work", source_dir=None, dry_run=True)
     state = make_state(tmp_path / "work")
     step = VendorBumpStep(
-        ecosystem="go", pins=[VendorBumpEntry(dependency="x", minimum_version="1.0.0")]
+        ecosystem="go", pins=[VendorBumpEntry(dependency="x", version="1.0.0")]
     )
     VendorBumpHandler().run(step, ctx, state)
     mock_run.assert_not_called()
+
+
+# --- _parse_constraint ---
+
+
+def test_parse_constraint_plain_version():
+    assert _parse_constraint("0.39.0") == ("minimum", "0.39.0")
+
+
+def test_parse_constraint_tilde_prefix():
+    assert _parse_constraint("~4.18") == ("prefix", "4.18")
+
+
+# --- tilde prefix mode ---
+
+
+def test_npm_pin_tilde_prefix(tmp_path, mocker):
+    (tmp_path / "package.json").write_text(
+        json.dumps({"dependencies": {"lodash": "^4.0.0"}})
+    )
+    mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+    entry = VendorBumpEntry(dependency="lodash", version="~4.18")
+    _NpmPin().apply(tmp_path, entry, [])
+    data = json.loads((tmp_path / "package.json").read_text())
+    assert data["dependencies"]["lodash"] == "~4.18"
+
+
+def test_go_pin_tilde_prefix(tmp_path, mocker):
+    mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+    entry = VendorBumpEntry(dependency="golang.org/x/text", version="~0.39")
+    _GoPin().apply(tmp_path, entry, [])
+    assert mock_run.call_args_list[0].args[0] == [
+        "go", "mod", "edit", "-require=golang.org/x/text@0.39",
+    ]
+
+
+def test_cargo_pin_tilde_prefix(tmp_path, mocker):
+    (tmp_path / "Cargo.toml").write_text(
+        '[dependencies]\nserde = "1.0.0"\n'
+    )
+    mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+    entry = VendorBumpEntry(dependency="serde", version="~1.0")
+    _CargoPin().apply(tmp_path, entry, [])
+    text = (tmp_path / "Cargo.toml").read_text()
+    assert 'serde = "~1.0"' in text
+
+
+# --- Skip-if-satisfied ---
+
+
+def test_handler_skips_when_version_already_satisfies_minimum(tmp_path, mocker):
+    """vendor-bump should not modify anything if current version >= requested."""
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "package.json").write_text(
+        json.dumps({"dependencies": {"lodash": "^4.17.21"}})
+    )
+    (source / "package-lock.json").write_text(
+        json.dumps({"packages": {"node_modules/lodash": {"version": "4.18.0"}}})
+    )
+    mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+    step = VendorBumpStep(
+        ecosystem="npm",
+        pins=[VendorBumpEntry(dependency="lodash", version="4.17.21")],
+        modules=[VendorModule(path=".")],
+    )
+    ctx = make_ctx(tmp_path, source)
+    state = make_state(tmp_path)
+    VendorBumpHandler().run(step, ctx, state)
+    mock_run.assert_not_called()
+
+
+def test_handler_skips_when_version_matches_prefix(tmp_path, mocker):
+    """vendor-bump should skip when current version matches tilde prefix."""
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "package.json").write_text(
+        json.dumps({"dependencies": {"lodash": "^4.18.0"}})
+    )
+    (source / "package-lock.json").write_text(
+        json.dumps({"packages": {"node_modules/lodash": {"version": "4.18.2"}}})
+    )
+    mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+    step = VendorBumpStep(
+        ecosystem="npm",
+        pins=[VendorBumpEntry(dependency="lodash", version="~4.18")],
+        modules=[VendorModule(path=".")],
+    )
+    ctx = make_ctx(tmp_path, source)
+    state = make_state(tmp_path)
+    VendorBumpHandler().run(step, ctx, state)
+    mock_run.assert_not_called()
+
+
+def test_handler_applies_when_version_does_not_satisfy(tmp_path, mocker):
+    """vendor-bump should apply when current version < requested minimum."""
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "package.json").write_text(
+        json.dumps({"dependencies": {"lodash": "^4.17.0"}})
+    )
+    (source / "package-lock.json").write_text(
+        json.dumps({"packages": {"node_modules/lodash": {"version": "4.17.0"}}})
+    )
+    mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+    step = VendorBumpStep(
+        ecosystem="npm",
+        pins=[VendorBumpEntry(dependency="lodash", version="4.18.0")],
+        modules=[VendorModule(path=".")],
+    )
+    ctx = make_ctx(tmp_path, source)
+    state = make_state(tmp_path)
+    VendorBumpHandler().run(step, ctx, state)
+    mock_run.assert_called_once()

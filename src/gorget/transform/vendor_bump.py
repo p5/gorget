@@ -6,6 +6,7 @@ legal step type under `transform:`) re-vendors against the updated constraint.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Sequence
 from pathlib import Path
@@ -14,9 +15,24 @@ from typing import Protocol
 from gorget.config.schema import ToolchainEntry, VendorBumpEntry, VendorBumpStep
 from gorget.exceptions import GorgetConfigError, GorgetTransientError
 from gorget.pipeline.state import StageState
+from gorget.policy.vendor_constraints import _RESOLVERS
 from gorget.toolchain import wrap_command
 from gorget.transform.base import TransformContext, ensure_source_dir
 from gorget.util.subprocess_run import run
+from gorget.util.version import satisfies_constraint
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_constraint(version: str) -> tuple[str, str]:
+    """Parse version into (mode, version).
+
+    Returns ("minimum", "0.39.0") for plain versions,
+    or ("prefix", "4.18") for tilde-prefixed versions.
+    """
+    if version.startswith("~"):
+        return ("prefix", version[1:])
+    return ("minimum", version)
 
 
 class _PinStrategy(Protocol):
@@ -29,7 +45,9 @@ class _GoPin:
     def apply(
         self, module_dir: Path, entry: VendorBumpEntry, toolchain: Sequence[ToolchainEntry]
     ) -> None:
-        require = f"-require={entry.dependency}@{entry.minimum_version}"
+        mode, ver = _parse_constraint(entry.version)
+        # Both modes use the same Go command — Go's MVS naturally picks latest matching.
+        require = f"-require={entry.dependency}@{ver}"
         result = run(wrap_command(["go", "mod", "edit", require], toolchain), cwd=module_dir)
         if result.returncode != 0:
             raise GorgetTransientError(
@@ -51,11 +69,14 @@ class _NpmPin:
         if not package_json.is_file():
             raise GorgetConfigError(f"vendor-bump: no package.json found in {module_dir}")
 
+        mode, ver = _parse_constraint(entry.version)
+        specifier = f"~{ver}" if mode == "prefix" else f">={ver}"
+
         data = json.loads(package_json.read_text())
         found = False
         for key in ("dependencies", "devDependencies"):
             if key in data and entry.dependency in data[key]:
-                data[key][entry.dependency] = f">={entry.minimum_version}"
+                data[key][entry.dependency] = specifier
                 found = True
         if not found:
             raise GorgetConfigError(
@@ -80,11 +101,14 @@ class _CargoPin:
         if not cargo_toml.is_file():
             raise GorgetConfigError(f"vendor-bump: no Cargo.toml found in {module_dir}")
 
+        mode, ver = _parse_constraint(entry.version)
+        specifier = f"~{ver}" if mode == "prefix" else f">={ver}"
+
         text = cargo_toml.read_text()
         pattern = re.compile(
             rf'^(\s*{re.escape(entry.dependency)}\s*=\s*")[^"]*(")', re.MULTILINE
         )
-        new_text, count = pattern.subn(rf"\g<1>>={entry.minimum_version}\g<2>", text)
+        new_text, count = pattern.subn(rf"\g<1>{specifier}\g<2>", text)
         if count == 0:
             raise GorgetConfigError(
                 f"vendor-bump: {entry.dependency} not found as a simple inline dependency in "
@@ -108,11 +132,14 @@ class _PnpmPin:
         if not package_json.is_file():
             raise GorgetConfigError(f"vendor-bump: no package.json found in {module_dir}")
 
+        mode, ver = _parse_constraint(entry.version)
+        specifier = f"~{ver}" if mode == "prefix" else f">={ver}"
+
         data = json.loads(package_json.read_text())
         found = False
         for key in ("dependencies", "devDependencies"):
             if key in data and entry.dependency in data[key]:
-                data[key][entry.dependency] = f">={entry.minimum_version}"
+                data[key][entry.dependency] = specifier
                 found = True
         if not found:
             raise GorgetConfigError(
@@ -137,11 +164,14 @@ class _YarnPin:
         if not package_json.is_file():
             raise GorgetConfigError(f"vendor-bump: no package.json found in {module_dir}")
 
+        mode, ver = _parse_constraint(entry.version)
+        specifier = f"~{ver}" if mode == "prefix" else f">={ver}"
+
         data = json.loads(package_json.read_text())
         found = False
         for key in ("dependencies", "devDependencies"):
             if key in data and entry.dependency in data[key]:
-                data[key][entry.dependency] = f">={entry.minimum_version}"
+                data[key][entry.dependency] = specifier
                 found = True
         if not found:
             raise GorgetConfigError(
@@ -150,7 +180,7 @@ class _YarnPin:
             )
         package_json.write_text(json.dumps(data, indent=2) + "\n")
 
-        cmd = ["yarn", "upgrade", f"{entry.dependency}@>={entry.minimum_version}"]
+        cmd = ["yarn", "upgrade", f"{entry.dependency}@{specifier}"]
         result = run(wrap_command(cmd, toolchain), cwd=module_dir)
         if result.returncode != 0:
             raise GorgetTransientError(
@@ -173,7 +203,16 @@ class VendorBumpHandler:
             return
         source_dir = ensure_source_dir(ctx, state)
         strategy = _STRATEGIES[step.ecosystem]
+        resolve = _RESOLVERS.get(step.ecosystem)
         for module in step.modules:
             module_dir = source_dir / module.path
             for entry in step.pins:
+                if resolve:
+                    current = resolve(module_dir, entry.dependency)
+                    if current and satisfies_constraint(current, entry.version):
+                        logger.info(
+                            "vendor-bump: %s already at %s (satisfies %s), skipping",
+                            entry.dependency, current, entry.version,
+                        )
+                        continue
                 strategy.apply(module_dir, entry, ctx.toolchain)

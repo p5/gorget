@@ -11,8 +11,8 @@ from gorget.config.schema import (
     StripTarballStep,
     ToolchainEntry,
     UrlStep,
-    VendorModule,
     VendorBumpStep,
+    VendorModule,
     VendorStep,
 )
 
