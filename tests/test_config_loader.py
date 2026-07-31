@@ -117,7 +117,7 @@ def test_transform_vendor_bump_then_vendor_sequencing():
     )
     assert isinstance(spec.transform.steps[0], VendorBumpStep)
     assert spec.transform.steps[0].pins[0].dependency == "golang.org/x/net"
-    assert spec.transform.steps[0].pins[0].minimum_version == "0.23.0"
+    assert spec.transform.steps[0].pins[0].version == "0.23.0"
     assert isinstance(spec.transform.steps[1], VendorStep)
     assert spec.toolchain.entries == [ToolchainEntry(name="go", version="1.22.0")]
 

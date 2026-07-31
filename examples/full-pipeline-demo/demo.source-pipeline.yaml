@@ -27,11 +27,11 @@ transform:
   - type: vendor-bump
     ecosystem: go
     pins:
-      # Go module versions need the "v" prefix -- unlike npm/cargo, which
-      # don't use one. Whatever minimum-version you write is passed through
-      # to `go mod edit -require=<dependency>@<minimum-version>` verbatim.
+      # Plain version means ">=" (minimum). Tilde prefix (e.g. "~1.5")
+      # pins to that prefix (latest 1.5.x). Go module versions need the
+      # "v" prefix -- unlike npm/cargo, which don't use one.
       - dependency: "rsc.io/quote"
-        minimum-version: "v1.5.2"
+        version: "v1.5.2"
 
   # Re-vendor now that vendor-bump has bumped the dependency -- vendor is a
   # legal step under both fetch: and transform:, reused unchanged either way.
