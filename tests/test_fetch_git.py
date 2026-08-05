@@ -236,3 +236,74 @@ def test_dry_run_skips_clone_entirely(tmp_path, mocker):
     mock_run.assert_not_called()
     assert artifacts[0].checksum is None
     assert not artifacts[0].path.exists()
+
+
+def _submodule_calls(mock_run):
+    return [
+        c.args[0]
+        for c in mock_run.call_args_list
+        if len(c.args[0]) >= 2 and c.args[0][:2] == ["git", "submodule"]
+    ]
+
+
+def test_submodules_none_skips_submodule_update(tmp_path, mocker):
+    mocker.patch("gorget.fetch.git.commit_timestamp", return_value=1700000000)
+    mock_run = mocker.patch("gorget.fetch.git.run", side_effect=_fake_clone)
+    step = GitStep(repo="https://example.com/repo.git", ref="v1.2.3", shallow=True)
+    GitHandler().run(step, make_ctx(tmp_path))
+    assert _submodule_calls(mock_run) == []
+
+
+def test_submodules_shallow_inits_recursively_at_depth_1(tmp_path, mocker):
+    mocker.patch("gorget.fetch.git.commit_timestamp", return_value=1700000000)
+    mock_run = mocker.patch("gorget.fetch.git.run", side_effect=_fake_clone)
+    step = GitStep(
+        repo="https://example.com/repo.git", ref="v1.2.3", shallow=True, submodules="shallow"
+    )
+    GitHandler().run(step, make_ctx(tmp_path))
+
+    sub = _submodule_calls(mock_run)
+    assert sub == [["git", "submodule", "update", "--init", "--recursive", "--depth", "1"]]
+    # submodule update runs inside the clone dir
+    sub_call = next(c for c in mock_run.call_args_list if c.args[0][:2] == ["git", "submodule"])
+    assert sub_call.kwargs["cwd"] is not None
+
+
+def test_submodules_full_inits_recursively_without_depth(tmp_path, mocker):
+    mocker.patch("gorget.fetch.git.commit_timestamp", return_value=1700000000)
+    mock_run = mocker.patch("gorget.fetch.git.run", side_effect=_fake_clone)
+    step = GitStep(
+        repo="https://example.com/repo.git", ref="v1.2.3", shallow=True, submodules="full"
+    )
+    GitHandler().run(step, make_ctx(tmp_path))
+
+    sub = _submodule_calls(mock_run)
+    assert sub == [["git", "submodule", "update", "--init", "--recursive"]]
+
+
+def test_submodules_init_on_sha_ref_after_checkout(tmp_path, mocker):
+    mocker.patch("gorget.fetch.git.commit_timestamp", return_value=1700000000)
+    mock_run = mocker.patch("gorget.fetch.git.run", side_effect=_fake_clone)
+    step = GitStep(
+        repo="https://example.com/repo.git", ref="abc1234", shallow=True, submodules="shallow"
+    )
+    GitHandler().run(step, make_ctx(tmp_path))
+
+    ops = [c.args[0][1] for c in mock_run.call_args_list]
+    # Targeted SHA fetch, then checkout, then submodule update, in that order.
+    assert ops == ["init", "remote", "fetch", "checkout", "submodule"]
+
+
+def test_submodule_update_failure_raises_transient_error(tmp_path, mocker):
+    def _run(args, cwd=None):
+        if args[1] == "submodule":
+            return _fail("submodule fetch failed")
+        return _fake_clone(args, cwd)
+
+    mocker.patch("gorget.fetch.git.commit_timestamp", return_value=1700000000)
+    mocker.patch("gorget.fetch.git.run", side_effect=_run)
+    step = GitStep(
+        repo="https://example.com/repo.git", ref="v1.2.3", shallow=True, submodules="shallow"
+    )
+    with pytest.raises(GorgetTransientError, match="submodule fetch failed"):
+        GitHandler().run(step, make_ctx(tmp_path))

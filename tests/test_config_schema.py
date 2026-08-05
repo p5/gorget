@@ -53,6 +53,13 @@ def test_git_step_defaults():
     step = GitStep(repo="https://example.com/x.git", ref="v1.0.0")
     assert step.shallow is True
     assert step.subdir is None
+    assert step.submodules == "none"
+
+
+def test_git_step_accepts_submodule_modes():
+    for mode in ("none", "shallow", "full"):
+        step = GitStep(repo="https://example.com/x.git", ref="v1.0.0", submodules=mode)
+        assert step.submodules == mode
 
 
 def test_vendor_step_default_single_module():

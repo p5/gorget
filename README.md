@@ -63,7 +63,7 @@ four explicitly -- there's no container providing them implicitly anymore.
 | `spec-update` | Bump `Version:`/reset `Release:`/apply declared substitutions, before Source URLs resolve |
 | `spec-source` | Download the spec's `Source0`/`SourceN` URLs (macro-resolved), by index or all |
 | `url` | Download an explicit URL not declared in the spec |
-| `git` | Clone a repo at a tag/branch/commit, archive the checkout (or a subdir) |
+| `git` | Clone a repo at a tag/branch/commit (optionally with recursive submodules via `submodules: shallow`/`full`; use `full` if the project pins submodules to non-tip commits), archive the checkout (or a subdir) |
 | `vendor` | Generate a Go/npm/Cargo/Composer vendor archive (multi-submodule aware) |
 
 `git` (or another real fetch step) is mandatory for a **native package** (no

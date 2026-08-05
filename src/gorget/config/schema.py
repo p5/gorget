@@ -48,6 +48,11 @@ class GitStep:
     repo: str
     ref: str
     shallow: bool = True
+    # Recursively init submodules after checkout. "none" skips them, "shallow"
+    # clones each submodule at --depth 1 (no history), "full" clones full
+    # submodule history. Independent of `shallow`, which controls the parent
+    # clone.
+    submodules: Literal["none", "shallow", "full"] = "none"
     archive_name: str | None = None
     subdir: str | None = None
 

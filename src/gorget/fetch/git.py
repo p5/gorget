@@ -8,6 +8,14 @@ even when that commit isn't reachable from any advertised branch tip -- which
 a full clone's checkout can't reach at all ("unable to read tree"), and which
 a `--filter=blob:none` partial clone can hang on indefinitely, lazily
 fetching missing blobs on demand during checkout.
+
+`submodules` controls recursive submodule checkout after the parent is cloned:
+"none" skips them, "shallow" fetches each at `--depth 1`, "full" fetches full
+submodule history. It is independent of `shallow` (which governs the parent).
+
+Note: "shallow" can fail when a submodule is pinned to a commit that isn't its
+remote branch tip and the server won't serve that SHA in a depth-1 fetch (some
+self-hosted servers). Use "full" if a project pins submodules that way.
 """
 
 from __future__ import annotations
@@ -42,6 +50,8 @@ class GitHandler:
         if not ctx.dry_run:
             clone_dir = ctx.work_dir / "_git" / _slug(step.repo)
             self._clone(step, clone_dir)
+            if step.submodules != "none":
+                self._init_submodules(clone_dir, shallow=step.submodules == "shallow")
             ctx.source_dir = clone_dir
             src = (clone_dir / step.subdir) if step.subdir else clone_dir
             mtime = commit_timestamp(clone_dir)
@@ -107,6 +117,12 @@ class GitHandler:
         clone_args = ["git", "clone", step.repo, str(dest)]
         self._run_git(clone_args, f"git clone failed for {step.repo}")
         self._run_git(["git", "checkout", step.ref], f"git checkout {step.ref} failed", cwd=dest)
+
+    def _init_submodules(self, dest: Path, *, shallow: bool) -> None:
+        args = ["git", "submodule", "update", "--init", "--recursive"]
+        if shallow:
+            args += ["--depth", "1"]
+        self._run_git(args, f"git submodule update failed for {dest}", cwd=dest)
 
     def _run_git(self, args: list[str], error_prefix: str, *, cwd: Path | None = None) -> None:
         result = run(args, cwd=cwd)
