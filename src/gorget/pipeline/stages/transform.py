@@ -25,7 +25,7 @@ from gorget.fetch.base import FetchedArtifact
 from gorget.fetch.vendor import VendorHandler
 from gorget.pipeline.result import StageResult
 from gorget.pipeline.state import StageState
-from gorget.transform.base import TransformContext
+from gorget.transform.base import TransformContext, finalize_source_artifact
 from gorget.transform.build_ui import BuildUiHandler
 from gorget.transform.pack import PackHandler
 from gorget.transform.run_step import RunHandler
@@ -83,4 +83,8 @@ class TransformStage:
             handler.run(step, transform_ctx, state)
 
         state.source_dir = transform_ctx.source_dir
+        # If any step edited the shared source tree in place, repack the source
+        # tarball once now (not per-step), so it stays consistent with the tree
+        # `vendor` and friends built against.
+        finalize_source_artifact(state, dry_run=ctx.dry_run)
         return StageResult(name=self.name, status="success")

@@ -216,3 +216,7 @@ class VendorBumpHandler:
                         )
                         continue
                 strategy.apply(module_dir, entry, ctx.toolchain)
+                # The shared source tree changed; TransformStage repacks the
+                # source tarball once at the end so it matches what `vendor`
+                # later builds against.
+                state.source_dirty = True
