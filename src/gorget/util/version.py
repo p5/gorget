@@ -59,9 +59,21 @@ def matches_prefix(actual: str, prefix: str) -> bool:
 def satisfies_constraint(actual: str, constraint: str) -> bool:
     """True if `actual` satisfies `constraint`.
 
-    Plain version ("0.39.0") checks >= (minimum).
-    Tilde-prefixed ("~4.18") checks prefix match.
+    Plain version ("0.39.0") checks >= (minimum) with no upper bound.
+
+    Tilde ("~4.18.2") is npm-style: a minimum floor *and* a same-series cap --
+    `~x.y.z` and `~x.y` allow the `x.y` series (>= floor, < x.(y+1)); `~x`
+    allows the `x` major (>= floor, < (x+1)). This matters for CVE fixes: it
+    both enforces the patched floor (so an unpatched `4.18.0` is NOT satisfied
+    by `~4.18.2`) and avoids floating across a major/minor boundary.
     """
     if constraint.startswith("~"):
-        return matches_prefix(actual, constraint[1:])
+        floor = constraint[1:]
+        if not meets_minimum(actual, floor):
+            return False
+        floor_parts = _parse(floor)
+        actual_parts = _parse(actual)
+        # 1-component floor (~4) caps at the major; otherwise cap at the minor.
+        series = 1 if len(floor_parts) == 1 else 2
+        return actual_parts[:series] == floor_parts[:series]
     return meets_minimum(actual, constraint)

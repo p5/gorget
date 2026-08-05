@@ -55,3 +55,35 @@ def test_meets_minimum_strips_prerelease_suffix():
 
 def test_meets_minimum_strips_build_metadata():
     assert meets_minimum("2.17.5+build123", "2.17.5") is True
+
+
+# --- satisfies_constraint: plain (>=) and npm-style tilde ---
+
+from gorget.util.version import satisfies_constraint  # noqa: E402
+
+
+def test_satisfies_plain_is_minimum_no_upper_bound():
+    assert satisfies_constraint("4.1.2", "3.1.5") is True   # floats across major
+    assert satisfies_constraint("3.1.4", "3.1.5") is False
+
+
+def test_satisfies_tilde_enforces_floor_within_series():
+    # The CVE case: 3.1.2 must NOT satisfy ~3.1.5 (below patched floor).
+    assert satisfies_constraint("3.1.2", "~3.1.5") is False
+    assert satisfies_constraint("3.1.5", "~3.1.5") is True
+    assert satisfies_constraint("3.1.9", "~3.1.5") is True
+
+
+def test_satisfies_tilde_caps_at_series():
+    assert satisfies_constraint("3.2.0", "~3.1.5") is False  # crossed minor
+    assert satisfies_constraint("4.0.0", "~3.1.5") is False  # crossed major
+
+
+def test_satisfies_tilde_two_component_series():
+    assert satisfies_constraint("4.18.2", "~4.18") is True
+    assert satisfies_constraint("4.19.0", "~4.18") is False
+
+
+def test_satisfies_tilde_major_only():
+    assert satisfies_constraint("1.5.0", "~1") is True
+    assert satisfies_constraint("2.0.0", "~1") is False
