@@ -17,8 +17,10 @@ from typing import Protocol
 from gorget.config.schema import ToolchainEntry, TransformStep
 from gorget.config.substitution import SubstitutionVars
 from gorget.exceptions import GorgetConfigError
+from gorget.fetch.base import build_artifact
 from gorget.pipeline.state import StageState
-from gorget.util.archive import extract_tar_gz
+from gorget.util.archive import extract_tar_gz, make_tar_gz, repack_tar_gz, strip_archive_suffix
+from gorget.util.git import commit_timestamp
 
 
 @dataclass(kw_only=True)
@@ -64,4 +66,46 @@ def ensure_source_dir(ctx: TransformContext, state: StageState, target: str | No
     extract_dir = ctx.work_dir / "_transform_source"
     extract_tar_gz(state.artifacts[0].path, extract_dir)
     ctx.source_dir = extract_dir
+    # Back the shared source tree with the artifact we extracted, so an in-place
+    # edit can be repacked into it at stage end. The extracted tree already
+    # carries the tarball's internal top-level dir, so it repacks as-is.
+    state.source_artifact = state.artifacts[0]
+    state.source_is_checkout = False
     return extract_dir
+
+
+def finalize_source_artifact(state: StageState, *, dry_run: bool) -> None:
+    """Repack the shared source tarball once, if a transform step edited the
+    working tree in place (`state.source_dirty`).
+
+    Keeps the shipped source tarball consistent with the tree that later steps
+    (e.g. `vendor`) built against -- without every mutating step having to know
+    about artifacts or re-archiving. A bare git checkout is re-wrapped under the
+    tarball's original top-level dir (via `make_tar_gz`'s `arcname`, stamped with
+    the commit timestamp so the bytes stay deterministic); an extracted tree
+    already carries that dir and is repacked as-is.
+    """
+    if dry_run or not state.source_dirty:
+        return
+    artifact = state.source_artifact
+    if artifact is None or state.source_dir is None:
+        return
+    if state.source_is_checkout:
+        make_tar_gz(
+            state.source_dir,
+            artifact.path,
+            arcname=strip_archive_suffix(artifact.output_name),
+            mtime=commit_timestamp(state.source_dir),
+        )
+    else:
+        repack_tar_gz(state.source_dir, artifact.path)
+    # FetchedArtifact is frozen and its checksum changed, so replace it in place.
+    for index, existing in enumerate(state.artifacts):
+        if existing.output_name == artifact.output_name:
+            rebuilt = build_artifact(
+                artifact.path, artifact.output_name, existing.source_description, dry_run=False
+            )
+            state.artifacts[index] = rebuilt
+            state.source_artifact = rebuilt
+            break
+    state.source_dirty = False
