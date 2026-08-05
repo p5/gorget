@@ -8,6 +8,7 @@ silently reverting a security fix fails closed instead of shipping quietly.
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -79,11 +80,43 @@ def _resolve_pnpm_version(module_dir: Path, package: str) -> str | None:
     return None
 
 
+_YARN_VERSION_RE = re.compile(r'^\s+version:?\s+"?([0-9][^"\s]*)"?')
+
+
 def _resolve_yarn_version(module_dir: Path, package: str) -> str | None:
-    lockfile = module_dir / "package-lock.json"
-    if lockfile.is_file():
-        return _resolve_npm_version(module_dir, package)
-    return None
+    """Resolve a package's version from yarn.lock (yarn v1 or Berry v2+).
+
+    Both formats share the shape: an unindented key line lists the requested
+    specs (e.g. `nanoid@^3.3.7:` for v1, `"nanoid@npm:^3.3.7":` for Berry),
+    followed by an indented `version "x"` (v1) / `version: x` (Berry) line. A
+    package can appear in several blocks; return the highest resolved version
+    (with overrides/resolutions in play every copy is forced to the same one,
+    so any is representative, and max is the safe reading for "satisfies").
+    """
+    lockfile = module_dir / "yarn.lock"
+    if not lockfile.is_file():
+        # Some setups keep a package-lock.json alongside yarn; fall back to it.
+        if (module_dir / "package-lock.json").is_file():
+            return _resolve_npm_version(module_dir, package)
+        return None
+
+    versions: list[str] = []
+    matching_block = False
+    for line in lockfile.read_text().splitlines():
+        if line and not line[0].isspace():
+            key = line.strip().rstrip(":")
+            specs = [spec.strip().strip('"') for spec in key.split(",")]
+            matching_block = any(
+                spec == package or spec.startswith(package + "@") for spec in specs
+            )
+        elif matching_block:
+            match = _YARN_VERSION_RE.match(line)
+            if match:
+                versions.append(match.group(1))
+                matching_block = False
+    if not versions:
+        return None
+    return max(versions, key=lambda v: tuple(int(p) for p in re.findall(r"\d+", v)[:3]))
 
 
 _RESOLVERS = {

@@ -12,7 +12,7 @@ they run at different times for different reasons.
 | | `transform: vendor-bump` | `policy: vendor-constraints` |
 |---|---|---|
 | Runs | Once, before the `vendor` step re-vendors | Every run, after everything's fetched |
-| Does | Edits the dependency manifest/lockfile (`go.mod`, `package.json`, `Cargo.toml`) to require at least the given version | Reads back the *actually vendored* version and compares it against the declared minimum |
+| Does | Edits the dependency manifest/lockfile (`go.mod`, `package.json`, `Cargo.toml`) to require at least the given version -- for a **nested transitive** dependency it uses the ecosystem's override mechanism (npm `overrides`, pnpm `pnpm.overrides`, yarn `resolutions`, cargo `--precise`) so every copy is forced, not just a direct edge | Reads back the *actually vendored* version and compares it against the declared minimum |
 | Answers | "Bump this dependency before vendoring" | "Did the bump actually take, and does it still hold on every future run?" |
 
 `vendor-bump` alone fixes this release. Nothing stops a later upstream update
@@ -37,15 +37,19 @@ transform:
 
 The `version` field supports two constraint modes:
 
-- **Plain version** (e.g. `"0.23.0"`): minimum, meaning `>=0.23.0`
-- **Tilde prefix** (e.g. `"~4.18"`): pin to that prefix, meaning latest `4.18.x`
+- **Plain version** (e.g. `"0.23.0"`): minimum, meaning `>=0.23.0`, with no
+  upper bound (may float across a major version to the latest match)
+- **Tilde** (e.g. `"~4.18.2"`): npm-style -- a minimum floor *and* a
+  same-series cap, meaning `>=4.18.2` but staying within `4.18.x`. Use this for
+  a CVE fix that must not cross a major/minor boundary; note that an unpatched
+  `4.18.0` does **not** satisfy `~4.18.2` (so the bump still fires)
 
 ```yaml
 pins:
   - dependency: "golang.org/x/text"
-    version: "0.39.0"    # >= 0.39.0
-  - dependency: "lodash"
-    version: "~4.18"     # latest 4.18.x
+    version: "0.39.0"    # >= 0.39.0 (no upper bound)
+  - dependency: "fast-uri"   # a nested transitive dep -> forced via resolutions
+    version: "~3.1.5"    # >= 3.1.5, capped to 3.1.x
 ```
 
 `vendor-bump` must come before the `vendor` step, and both belong in
