@@ -78,6 +78,10 @@ def test_git_fetch_then_vendor_bump_then_vendor(tmp_path, mocker):
     mocker.patch("gorget.fetch.git.run", side_effect=fake_run)
     mocker.patch("gorget.transform.vendor_bump.run", side_effect=fake_run)
     mocker.patch("gorget.fetch.vendor.go.run", side_effect=fake_run)
+    # This test mocks the package-manager calls, so the real resolver can't see
+    # a bumped version -- disable skip-check/post-verify to keep it focused on
+    # stage wiring (bump runs before vendor, artifacts produced).
+    mocker.patch.dict("gorget.transform.vendor_bump._RESOLVERS", clear=True)
 
     ctx = make_ctx(tmp_path, PIPELINE_YAML)
     spec = resolve_pipeline_spec(ctx)

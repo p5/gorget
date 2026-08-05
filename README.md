@@ -72,7 +72,7 @@ Runs after `fetch:`, in declared order, against what was already fetched.
 | Step | Purpose |
 |---|---|
 | `strip-tarball` | Remove paths (glob patterns) from a fetched tarball and repack it |
-| `vendor-bump` | Bump a vendored dependency to a minimum or prefix-pinned version (Go/npm/pnpm/yarn/Cargo) by editing its lockfile/manifest, before a later `vendor` step re-vendors. Plain `version: "0.39.0"` means `>=0.39.0`; tilde `version: "~4.18"` pins to latest `4.18.x` |
+| `vendor-bump` | Bump a vendored dependency (direct **or** nested transitive) to a minimum or series-capped version (Go/npm/pnpm/yarn/Cargo), before a later `vendor` step re-vendors. Transitive deps are forced via the ecosystem's override mechanism (npm `overrides`, pnpm `pnpm.overrides`, yarn `resolutions`, cargo `--precise`). Plain `version: "0.39.0"` means `>=0.39.0` (no upper bound); tilde `version: "~4.18.2"` means `>=4.18.2` capped to the `4.18.x` series |
 | `vendor` | Same step as `fetch:`'s `vendor` (reused) -- lets `vendor-bump` run before vendoring, since `fetch:` always runs before `transform:` |
 | `build-ui` | Run `npm`/`yarn run <script>` and archive the build output directory |
 | `run` | Escape hatch: an arbitrary command, with declared output paths archived as new artifacts afterward |
