@@ -40,9 +40,21 @@ class YarnVendor:
         self._write_yarnrc(module_dir, resolved, berry=berry)
 
         if berry:
-            # Berry reads cacheFolder/enableScripts from .yarnrc.yml (written
-            # above); `--immutable` fails if install would change the lockfile.
-            cmd = ["yarn", "install", "--immutable"]
+            # We force compressionLevel 0 for reproducibility, which
+            # invalidates every checksum in the upstream yarn.lock (they were
+            # computed under whatever level the project originally used).
+            # Step 1: regenerate checksums without fetching.
+            # Step 2: populate the cache — --immutable now succeeds because
+            #         the lockfile matches compressionLevel 0.
+            for cmd in (
+                ["yarn", "install", "--mode", "update-lockfile"],
+                ["yarn", "install", "--immutable"],
+            ):
+                result = run(wrap_command(cmd, toolchain), cwd=module_dir)
+                if result.returncode != 0:
+                    raise GorgetTransientError(
+                        f"yarn install failed in {module_dir}: {result.stderr.strip()}"
+                    )
         else:
             cache_dir.mkdir(parents=True, exist_ok=True)
             cmd = [
@@ -51,12 +63,11 @@ class YarnVendor:
                 "--ignore-scripts",
                 "--cache-folder", str(cache_dir),
             ]
-
-        result = run(wrap_command(cmd, toolchain), cwd=module_dir)
-        if result.returncode != 0:
-            raise GorgetTransientError(
-                f"yarn install failed in {module_dir}: {result.stderr.strip()}"
-            )
+            result = run(wrap_command(cmd, toolchain), cwd=module_dir)
+            if result.returncode != 0:
+                raise GorgetTransientError(
+                    f"yarn install failed in {module_dir}: {result.stderr.strip()}"
+                )
         node_modules = module_dir / "node_modules"
         if node_modules.exists():
             shutil.rmtree(node_modules)
@@ -111,6 +122,10 @@ class YarnVendor:
             config["enableGlobalCache"] = False
             config["cacheFolder"] = _BERRY_CACHE_REL
             config["enableScripts"] = False
+            # Pin compression to 0 (uncompressed) for byte-reproducible cache
+            # tarballs.  Upstream's default "mixed" lets yarn choose a
+            # per-package level that isn't stable across runs.
+            config["compressionLevel"] = 0
 
         yarnrc = module_dir / ".yarnrc.yml"
         if yarnrc.exists():

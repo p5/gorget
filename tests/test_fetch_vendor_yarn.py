@@ -99,17 +99,22 @@ def _berry_project(tmp_path):
     (tmp_path / "package.json").write_text('{"packageManager": "yarn@4.15.0"}')
 
 
-def test_yarn_berry_detected_via_package_manager_uses_immutable(tmp_path, mocker):
+def test_yarn_berry_two_step_install(tmp_path, mocker):
+    """Berry runs update-lockfile (regen checksums) then --immutable (populate cache)."""
     _berry_project(tmp_path)
     mock_run = mocker.patch("gorget.fetch.vendor.yarn.run", return_value=_ok())
     result = YarnVendor().vendor(tmp_path)
 
-    cmd = mock_run.call_args_list[0].args[0]
-    assert cmd == ["yarn", "install", "--immutable"]
-    # No v1-only flags that Berry rejects.
-    assert "--frozen-lockfile" not in cmd
-    assert "--ignore-scripts" not in cmd
-    assert "--cache-folder" not in cmd
+    assert mock_run.call_count == 2
+    step1 = mock_run.call_args_list[0].args[0]
+    step2 = mock_run.call_args_list[1].args[0]
+    assert step1 == ["yarn", "install", "--mode", "update-lockfile"]
+    assert step2 == ["yarn", "install", "--immutable"]
+    # No v1-only flags in either call.
+    for cmd in (step1, step2):
+        assert "--frozen-lockfile" not in cmd
+        assert "--ignore-scripts" not in cmd
+        assert "--cache-folder" not in cmd
     assert result == tmp_path / ".yarn" / "cache"
 
 
@@ -122,6 +127,7 @@ def test_yarn_berry_writes_offline_cache_config(tmp_path, mocker):
     assert data["enableGlobalCache"] is False
     assert data["cacheFolder"] == ".yarn/cache"
     assert data["enableScripts"] is False
+    assert data["compressionLevel"] == 0
     assert data["supportedArchitectures"]["cpu"] == ["arm64", "x64"]
 
 
@@ -129,7 +135,9 @@ def test_yarn_berry_detected_via_yarnrc_yarnpath(tmp_path, mocker):
     (tmp_path / ".yarnrc.yml").write_text("yarnPath: .yarn/releases/yarn-4.15.0.cjs\n")
     mock_run = mocker.patch("gorget.fetch.vendor.yarn.run", return_value=_ok())
     YarnVendor().vendor(tmp_path)
-    assert mock_run.call_args_list[0].args[0] == ["yarn", "install", "--immutable"]
+    assert mock_run.call_count == 2
+    assert mock_run.call_args_list[0].args[0] == ["yarn", "install", "--mode", "update-lockfile"]
+    assert mock_run.call_args_list[1].args[0] == ["yarn", "install", "--immutable"]
     # Existing yarnPath is preserved, offline-cache config merged in.
     data = yaml.safe_load((tmp_path / ".yarnrc.yml").read_text())
     assert data["yarnPath"] == ".yarn/releases/yarn-4.15.0.cjs"
@@ -140,7 +148,43 @@ def test_yarn_berry_detected_via_releases_dir(tmp_path, mocker):
     (tmp_path / ".yarn" / "releases").mkdir(parents=True)
     mock_run = mocker.patch("gorget.fetch.vendor.yarn.run", return_value=_ok())
     YarnVendor().vendor(tmp_path)
-    assert mock_run.call_args_list[0].args[0] == ["yarn", "install", "--immutable"]
+    assert mock_run.call_count == 2
+    assert mock_run.call_args_list[0].args[0] == ["yarn", "install", "--mode", "update-lockfile"]
+    assert mock_run.call_args_list[1].args[0] == ["yarn", "install", "--immutable"]
+
+
+def test_yarn_berry_fails_on_update_lockfile_skips_immutable(tmp_path, mocker):
+    """If update-lockfile fails, --immutable never runs."""
+    _berry_project(tmp_path)
+    mock_run = mocker.patch(
+        "gorget.fetch.vendor.yarn.run",
+        return_value=_fail(stderr="checksum mismatch"),
+    )
+    with pytest.raises(GorgetTransientError, match="checksum mismatch"):
+        YarnVendor().vendor(tmp_path)
+    assert mock_run.call_count == 1
+
+
+def test_yarn_berry_fails_on_immutable_step(tmp_path, mocker):
+    """If update-lockfile succeeds but --immutable fails, error is raised."""
+    _berry_project(tmp_path)
+    mock_run = mocker.patch(
+        "gorget.fetch.vendor.yarn.run",
+        side_effect=[_ok(), _fail(stderr="immutable check failed")],
+    )
+    with pytest.raises(GorgetTransientError, match="immutable check failed"):
+        YarnVendor().vendor(tmp_path)
+    assert mock_run.call_count == 2
+
+
+def test_yarn_v1_single_install_call(tmp_path, mocker):
+    """v1 still runs a single install, not the two-step Berry flow."""
+    mock_run = mocker.patch("gorget.fetch.vendor.yarn.run", return_value=_ok())
+    YarnVendor().vendor(tmp_path)
+    assert mock_run.call_count == 1
+    cmd = mock_run.call_args_list[0].args[0]
+    assert "--frozen-lockfile" in cmd
+    assert "--mode" not in cmd
 
 
 def test_yarn_v1_when_package_manager_is_v1(tmp_path, mocker):
