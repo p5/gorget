@@ -1,4 +1,24 @@
-from gorget.util.version import meets_minimum
+import pytest
+
+from gorget.util.version import meets_minimum, rpm_version
+
+
+@pytest.mark.parametrize(
+    "npm_version, expected",
+    [
+        ("1.2.3", "1.2.3"),                       # plain release, unchanged
+        ("4.17.21", "4.17.21"),
+        ("1.2.3-rc.1", "1.2.3~rc.1"),             # semver prerelease -> ~
+        ("14.0.0-alpha", "14.0.0~alpha"),
+        ("2.0.0-beta.2.3", "2.0.0~beta.2.3"),
+        ("1.0.0--beta", "1.0.0~beta"),            # leading junk in prerelease stripped
+        ("1.2.3+build.5", "1.2.3"),               # build metadata dropped
+        ("1.2.3-rc.1+build.5", "1.2.3~rc.1"),
+        ("1..2.3", "1.2.3"),                      # collapsed repeated separators
+    ],
+)
+def test_rpm_version(npm_version, expected):
+    assert rpm_version(npm_version) == expected
 
 
 def test_meets_minimum_equal():

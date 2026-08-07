@@ -8,6 +8,24 @@ Verify/Policy have all validated the real inputs, and it's the one stage
 that's allowed to write into `--package-dir` -- because the whole point is to
 land a change in the tracked spec file.
 
+> **Before you write a script:** if you just need a bundled `Provides:` block
+> for vendored JS dependencies, use the built-in `bundled-provides` step
+> instead -- it parses `package-lock.json`/`pnpm-lock.yaml`/`yarn.lock` and
+> writes the `Provides: bundled(npm(...))` lines for you, no script required.
+> See [the README's `post:` reference](../../README.md#post). Reach for a
+> custom `run` step (below) only when you need something `bundled-provides`
+> doesn't cover.
+>
+> ```yaml
+> post:
+>   - type: bundled-provides
+>     ecosystem: npm
+>     modules:
+>       - path: "ui"
+> ```
+>
+> Then in the spec: `%include %{S:N}` (matching the `.inc`'s `SourceN:` entry).
+
 ## 1. Decide what needs regenerating, and mark it with BEGIN/END markers
 
 A common, simple pattern: wrap the generated block in the spec file with

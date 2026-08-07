@@ -60,6 +60,19 @@ run_demo "native-cargo-demo"
     --debug
 )
 
+run_demo "bundled-provides-demo"
+(
+  cd examples/bundled-provides-demo
+  ./setup-demo-repo.sh
+  gorget --version 1.0.0 \
+    --package-dir . \
+    --pipeline-file demo.source-pipeline.yaml \
+    --output-dir /tmp/gorget-examples/bundled-provides-demo \
+    --debug
+  echo "--- generated bundled-npm-provides.inc ---"
+  cat bundled-npm-provides.inc
+)
+
 run_demo "verify-demo"
 (
   cd examples/verify-demo

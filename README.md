@@ -294,6 +294,49 @@ declares its `output_name` in `artifacts:`; each is copied into
 Skipped entirely under `--dry-run` (nothing should write to the real package
 directory during a dry run) and when no `post:` steps are declared.
 
+#### `bundled-provides` (built-in primitive)
+
+The canonical `post:` case -- generating an RPM `Provides: bundled(npm(...))`
+block for vendored JS dependencies -- is available as a built-in step, so no
+custom script is needed. It parses the lockfile(s) in the fetched source tree
+and writes one sorted `Provides:` line per dependency.
+
+```yaml
+post:
+  - type: bundled-provides
+    ecosystem: npm          # npm | pnpm | yarn
+    modules:
+      - path: "ui"          # defaults to [{ path: "." }]
+    scope: production       # "production" (default, drops devDependencies) | "all"
+    output: bundled-npm-provides.inc
+```
+
+It reads `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock` from
+`<source>/<module.path>` -- the same checkout `vendor`/`vendor-pin` operate
+on, so the provides reflect any `vendor-pin` edits made earlier in the
+pipeline. Versions are normalised to RPM form (a semver pre-release
+`1.2.3-rc.1` becomes `1.2.3~rc.1`).
+
+The namespace is deliberately fixed to `bundled(npm(<name>))` for **every** JS
+ecosystem (npm/pnpm/yarn) and is not configurable. npm/pnpm/yarn all resolve
+against the npm registry, so the package name is the stable identifier
+regardless of which lockfile produced it. Unlike Go -- where
+`go-rpm-macros` auto-generates `bundled(golang(...))` at build time from
+`vendor/modules.txt` -- Fedora has no build-time generator for bundled npm
+provides and no single blessed string, so gorget standardises on one form
+(matching the Bundled Software Policy's `bundled(<system>(<name>))` shape).
+Every gorget-packaged JS app emits the same namespace, keeping the block
+greppable and consistent across packages.
+
+The file is written into `--package-dir`; pull it into the spec with:
+
+```spec
+%include %{SOURCEN}    # e.g. %include %{S:9}, matching its SourceN: entry
+```
+
+Requires a preceding `git` fetch step to establish the source checkout; it
+fails closed otherwise.
+
 ### `toolchain:`
 
 ```yaml
