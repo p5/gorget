@@ -1,6 +1,14 @@
+import json
+
 import pytest
 
-from gorget.config.schema import PipelineSpec, PostRunStep, PostSection
+from gorget.config.schema import (
+    BundledProvidesStep,
+    PipelineSpec,
+    PostRunStep,
+    PostSection,
+    VendorModule,
+)
 from gorget.config.substitution import SubstitutionVars
 from gorget.context import RunContext
 from gorget.exceptions import GorgetConfigError, GorgetTransientError
@@ -128,4 +136,101 @@ def test_unknown_artifact_name_raises_config_error(tmp_path):
         post=PostSection(steps=[PostRunStep(artifacts=["does-not-exist.tar.gz"], command=["true"])])
     )
     with pytest.raises(GorgetConfigError, match="does-not-exist.tar.gz"):
+        PostStage().run(ctx, spec, state)
+
+
+# -- bundled-provides --
+
+def _write_npm_lock(source_dir, module_path, packages):
+    module_dir = source_dir / module_path
+    module_dir.mkdir(parents=True, exist_ok=True)
+    (module_dir / "package-lock.json").write_text(json.dumps({"packages": packages}))
+
+
+def test_bundled_provides_writes_inc_file(tmp_path):
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    _write_npm_lock(source_dir, "ui", {
+        "node_modules/lodash": {"version": "4.17.21"},
+        "node_modules/react": {"version": "18.2.0"},
+        "node_modules/jest": {"version": "29.0.0", "dev": True},
+    })
+
+    ctx = make_ctx(package_dir)
+    state = make_state(tmp_path)
+    state.source_dir = source_dir
+    spec = PipelineSpec(
+        post=PostSection(
+            steps=[BundledProvidesStep(ecosystem="npm", modules=[VendorModule(path="ui")])]
+        )
+    )
+
+    result = PostStage().run(ctx, spec, state)
+
+    assert result.status == "success"
+    content = (package_dir / "bundled-npm-provides.inc").read_text()
+    assert "Provides:       bundled(npm(lodash)) = 4.17.21" in content
+    assert "Provides:       bundled(npm(react)) = 18.2.0" in content
+    # scope defaults to production -- dev deps excluded
+    assert "jest" not in content
+    # sorted by name
+    assert content.index("lodash") < content.index("react")
+
+
+def test_bundled_provides_scope_all_includes_dev(tmp_path):
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    _write_npm_lock(source_dir, ".", {
+        "node_modules/lodash": {"version": "4.17.21"},
+        "node_modules/jest": {"version": "29.0.0", "dev": True},
+    })
+
+    ctx = make_ctx(package_dir)
+    state = make_state(tmp_path)
+    state.source_dir = source_dir
+    spec = PipelineSpec(
+        post=PostSection(steps=[BundledProvidesStep(ecosystem="npm", scope="all")])
+    )
+
+    PostStage().run(ctx, spec, state)
+    content = (package_dir / "bundled-npm-provides.inc").read_text()
+    assert "bundled(npm(jest)) = 29.0.0" in content
+    assert "bundled(npm(lodash)) = 4.17.21" in content
+
+
+def test_bundled_provides_output_override_and_rpm_version(tmp_path):
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    _write_npm_lock(source_dir, ".", {
+        "node_modules/next": {"version": "14.0.0-rc.1"},
+    })
+
+    ctx = make_ctx(package_dir)
+    state = make_state(tmp_path)
+    state.source_dir = source_dir
+    spec = PipelineSpec(
+        post=PostSection(
+            steps=[BundledProvidesStep(ecosystem="npm", output="provides.inc")]
+        )
+    )
+
+    PostStage().run(ctx, spec, state)
+    content = (package_dir / "provides.inc").read_text()
+    # semver prerelease '-' -> rpm '~'
+    assert "Provides:       bundled(npm(next)) = 14.0.0~rc.1" in content
+
+
+def test_bundled_provides_without_source_dir_raises(tmp_path):
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)  # source_dir defaults to None
+    spec = PipelineSpec(
+        post=PostSection(steps=[BundledProvidesStep(ecosystem="npm")])
+    )
+    with pytest.raises(GorgetTransientError, match="source checkout"):
         PostStage().run(ctx, spec, state)

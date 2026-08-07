@@ -1,0 +1,20 @@
+fetch:
+  - type: git
+    repo: "./demo-repo"
+    ref: "main"
+
+# The bundled-provides post step parses the fetched ui/package-lock.json and
+# writes an RPM Provides block to bundled-npm-provides.inc in --package-dir.
+# It's a self-contained primitive -- it declares its own ecosystem/modules and
+# does the lockfile parsing itself, no cross-step wiring.
+#
+# scope: production (the default) drops devDependencies, so `jest` is excluded
+# while `is-odd` and its transitive `is-number` are kept. Set scope: all to
+# include dev dependencies too.
+post:
+  - type: bundled-provides
+    ecosystem: npm
+    modules:
+      - path: "ui"
+    scope: production
+    output: bundled-npm-provides.inc

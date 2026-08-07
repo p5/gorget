@@ -25,13 +25,15 @@ import logging
 import shutil
 from typing import ClassVar
 
-from gorget.config.schema import PipelineSpec, PostRunStep
+from gorget.config.schema import BundledProvidesStep, PipelineSpec, PostRunStep
 from gorget.context import RunContext
 from gorget.exceptions import GorgetTransientError
+from gorget.fetch.vendor.lockfile import parse_bundled_provides
 from gorget.pipeline.result import StageResult
 from gorget.pipeline.state import StageState
 from gorget.toolchain import wrap_command
 from gorget.util.subprocess_run import run
+from gorget.util.version import rpm_version
 
 logger = logging.getLogger("gorget.pipeline")
 
@@ -49,9 +51,35 @@ class PostStage:
             return StageResult(name=self.name, status="skipped", reason="dry-run")
 
         for step in spec.post.steps:
-            self._run_step(step, ctx, spec, state)
+            if isinstance(step, BundledProvidesStep):
+                self._run_bundled_provides(step, ctx, state)
+            else:
+                self._run_step(step, ctx, spec, state)
 
         return StageResult(name=self.name, status="success")
+
+    def _run_bundled_provides(
+        self, step: BundledProvidesStep, ctx: RunContext, state: StageState
+    ) -> None:
+        # Parse straight from the fetched source tree -- the same checkout
+        # `vendor`/`vendor-bump` operate on, so provides reflect any bumps.
+        if state.source_dir is None:
+            raise GorgetTransientError(
+                "bundled-provides step requires a source checkout -- add a preceding "
+                "'git' fetch step whose lockfiles this step can read"
+            )
+        provides = parse_bundled_provides(step.ecosystem, state.source_dir, step.modules)
+        # Namespace is bundled(npm(...)) for every JS ecosystem: npm/pnpm/yarn
+        # all resolve against the npm registry, matching Fedora's convention.
+        lines = [
+            f"Provides:       bundled(npm({name})) = {rpm_version(version)}"
+            for name, version in provides[step.scope]  # already sorted
+        ]
+        inc_path = ctx.package_dir / step.output
+        inc_path.write_text("\n".join(lines) + "\n")
+        logger.debug(
+            "post step (bundled-provides): wrote %d lines to %s", len(lines), inc_path
+        )
 
     def _run_step(
         self, step: PostRunStep, ctx: RunContext, spec: PipelineSpec, state: StageState
