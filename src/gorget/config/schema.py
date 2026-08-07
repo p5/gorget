@@ -271,14 +271,31 @@ class PostRunStep:
     artifacts: list[str] = field(default_factory=list)
 
 
-# Room for a future ecosystem-aware step (e.g. `bundled-provides`, sketched in
-# the design doc) that extracts dependency versions from a vendor manifest and
-# splices them into the spec between markers -- `run` alone already covers
-# every real case migrated so far.
-PostStep = PostRunStep
+@dataclass(frozen=True, kw_only=True)
+class BundledProvidesStep:
+    """Generate an RPM `Provides: bundled(npm(...))` block from lockfiles.
+
+    Self-contained like the `vendor` step: it declares its own `ecosystem` and
+    `modules` and parses the lockfiles under `source_dir/<module.path>` itself
+    (no cross-step wiring). Writes one sorted `Provides:` line per bundled
+    dependency to `output` in `--package-dir`, for the spec to pull in with
+    `%include %{S:N}`.
+    """
+
+    type: Literal["bundled-provides"] = "bundled-provides"
+    ecosystem: Literal["npm", "pnpm", "yarn"]
+    modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
+    # "production" drops devDependencies (the usual RPM case -- dev tooling
+    # isn't shipped); "all" includes them.
+    scope: Literal["production", "all"] = "production"
+    output: str = "bundled-npm-provides.inc"
+
+
+PostStep = PostRunStep | BundledProvidesStep
 
 POST_STEP_TYPES: dict[str, type] = {
     "run": PostRunStep,
+    "bundled-provides": BundledProvidesStep,
 }
 
 

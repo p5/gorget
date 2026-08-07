@@ -130,6 +130,8 @@ def _parse_post_step(raw_step: object) -> PostStep:
             f"Unknown post step type: {step_type!r} (expected one of {sorted(POST_STEP_TYPES)})"
         )
     step_cls = POST_STEP_TYPES[step_type]
+    if step_type == "bundled-provides" and "modules" in step:
+        step["modules"] = [VendorModule(**_snake_case_keys(mod)) for mod in step["modules"]]
     try:
         return step_cls(**step)
     except TypeError as exc:
