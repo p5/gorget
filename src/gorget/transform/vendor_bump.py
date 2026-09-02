@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import shutil
+import xml.etree.ElementTree as ET
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Protocol
@@ -305,12 +306,97 @@ class _CargoPin:
             )
 
 
+class _MavenPin:
+    def apply(
+        self, module_dir: Path, entry: VendorBumpEntry, toolchain: Sequence[ToolchainEntry]
+    ) -> None:
+        if not (module_dir / "pom.xml").is_file():
+            raise GorgetConfigError(f"vendor-bump: no pom.xml found in {module_dir}")
+        if entry.dependency.count(":") != 1:
+            raise GorgetConfigError(
+                "vendor-bump: Maven dependencies must use groupId:artifactId coordinates"
+            )
+
+        group_id, artifact_id = entry.dependency.split(":")
+        _mode, version = _parse_constraint(entry.version)
+        parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
+        tree = ET.parse(module_dir / "pom.xml", parser=parser)
+        root = tree.getroot()
+        namespace = root.tag.removesuffix("project").strip("{}")
+        prefix = f"{{{namespace}}}" if namespace else ""
+        if namespace:
+            ET.register_namespace("", namespace)
+
+        def child_text(node: ET.Element, name: str) -> str | None:
+            child = node.find(f"{prefix}{name}")
+            return child.text.strip() if child is not None and child.text else None
+
+        direct = root.findall(f"{prefix}dependencies/{prefix}dependency")
+        managed = root.findall(
+            f"{prefix}dependencyManagement/{prefix}dependencies/{prefix}dependency"
+        )
+        declared = any(
+            child_text(dep, "groupId") == group_id
+            and child_text(dep, "artifactId") == artifact_id
+            for dep in [*direct, *managed]
+        )
+
+        if not declared:
+            dependency_management = root.find(f"{prefix}dependencyManagement")
+            if dependency_management is None:
+                dependency_management = ET.Element(f"{prefix}dependencyManagement")
+                later_sections = {
+                    "dependencies",
+                    "repositories",
+                    "pluginRepositories",
+                    "build",
+                    "reports",
+                    "reporting",
+                    "profiles",
+                }
+                insertion_index = next(
+                    (
+                        index
+                        for index, child in enumerate(root)
+                        if child.tag.rsplit("}", 1)[-1] in later_sections
+                    ),
+                    len(root),
+                )
+                root.insert(insertion_index, dependency_management)
+            dependencies = dependency_management.find(f"{prefix}dependencies")
+            if dependencies is None:
+                dependencies = ET.SubElement(dependency_management, f"{prefix}dependencies")
+            dependency = ET.SubElement(dependencies, f"{prefix}dependency")
+            ET.SubElement(dependency, f"{prefix}groupId").text = group_id
+            ET.SubElement(dependency, f"{prefix}artifactId").text = artifact_id
+            ET.SubElement(dependency, f"{prefix}version").text = version
+            ET.indent(tree, space="  ")
+            tree.write(module_dir / "pom.xml", encoding="unicode", xml_declaration=True)
+            return
+
+        cmd = [
+            "mvn",
+            "versions:use-dep-version",
+            f"-Dincludes={entry.dependency}",
+            f"-DdepVersion={version}",
+            "-DforceVersion=true",
+            "-DgenerateBackupPoms=false",
+        ]
+        result = run(wrap_command(cmd, toolchain), cwd=module_dir)
+        if result.returncode != 0:
+            raise GorgetTransientError(
+                f"mvn versions:use-dep-version failed in {module_dir}: "
+                f"{result.stderr.strip()}"
+            )
+
+
 _STRATEGIES: dict[str, _PinStrategy] = {
     "go": _GoPin(),
     "npm": _NpmPin(),
     "pnpm": _PnpmPin(),
     "yarn": _JsPin(overrides_path=("resolutions",), install_cmd=_yarn_install_cmd),
     "cargo": _CargoPin(),
+    "maven": _MavenPin(),
 }
 
 

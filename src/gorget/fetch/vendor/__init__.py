@@ -1,6 +1,4 @@
-"""`vendor` step: generate dependency vendor archives for Go, npm, pnpm, yarn,
-Cargo, and Composer ecosystems, combining multiple submodules (e.g. etcd) into
-one archive.
+"""Generate dependency vendor archives for supported ecosystems.
 
 Reused by both the Fetch stage's `vendor` step and the Transform stage's `vendor`
 step (see `fetch/vendor/base.py`'s `VendorRunContext` for why this isn't typed
@@ -17,6 +15,7 @@ from gorget.fetch.vendor.cargo import CargoVendor
 from gorget.fetch.vendor.combine import combine_vendor_archives
 from gorget.fetch.vendor.composer import ComposerVendor
 from gorget.fetch.vendor.go import GoVendor
+from gorget.fetch.vendor.maven import MavenVendor
 from gorget.fetch.vendor.npm import NpmVendor
 from gorget.fetch.vendor.pnpm import PnpmVendor
 from gorget.fetch.vendor.yarn import YarnVendor
@@ -29,6 +28,7 @@ _ECOSYSTEMS: dict[str, VendorEcosystem] = {
     "yarn": YarnVendor(),
     "cargo": CargoVendor(),
     "composer": ComposerVendor(),
+    "maven": MavenVendor(),
 }
 
 

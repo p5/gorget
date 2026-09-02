@@ -119,12 +119,28 @@ def _resolve_yarn_version(module_dir: Path, package: str) -> str | None:
     return max(versions, key=lambda v: tuple(int(p) for p in re.findall(r"\d+", v)[:3]))
 
 
+def _resolve_maven_version(module_dir: Path, package: str) -> str | None:
+    if package.count(":") != 1:
+        return None
+    cmd = ["mvn"]
+    vendor_dir = module_dir / "vendor"
+    if vendor_dir.is_dir():
+        cmd.extend(["-o", f"-Dmaven.repo.local={vendor_dir}"])
+    cmd.extend(["dependency:tree", f"-Dincludes={package}", "-DoutputType=text"])
+    result = run(cmd, cwd=module_dir)
+    if result.returncode != 0:
+        return None
+    match = re.search(rf"(?:^|\s){re.escape(package)}:[^:\s]+:([^:\s]+):", result.stdout)
+    return match.group(1) if match else None
+
+
 _RESOLVERS = {
     "go": _resolve_go_version,
     "npm": _resolve_npm_version,
     "pnpm": _resolve_pnpm_version,
     "yarn": _resolve_yarn_version,
     "cargo": _resolve_cargo_version,
+    "maven": _resolve_maven_version,
 }
 
 
