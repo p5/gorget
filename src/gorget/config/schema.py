@@ -84,7 +84,7 @@ _DEFAULT_NPM_PLATFORMS: list[VendorPlatform] = [
 @dataclass(frozen=True, kw_only=True)
 class VendorStep:
     type: Literal["vendor"] = "vendor"
-    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo", "composer"]
+    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo", "composer", "maven"]
     archive_name: str | None = None
     modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
     platforms: list[VendorPlatform] | None = None
@@ -139,7 +139,7 @@ class VendorBumpEntry:
 @dataclass(frozen=True, kw_only=True)
 class VendorBumpStep:
     type: Literal["vendor-bump"] = "vendor-bump"
-    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo"]
+    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo", "maven"]
     pins: list[VendorBumpEntry] = field(default_factory=list)
     modules: list[VendorModule] = field(default_factory=lambda: [VendorModule(path=".")])
 
@@ -253,7 +253,7 @@ class AcceptedChecksumsSection:
 @dataclass(frozen=True, kw_only=True)
 class VendorConstraintEntry:
     package: str
-    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo"]
+    ecosystem: Literal["go", "npm", "pnpm", "yarn", "cargo", "maven"]
     # Minimum version -- "at least this version," same semantics as vendor-bump.
     version: str
     reason: str

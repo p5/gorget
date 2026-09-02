@@ -144,6 +144,56 @@ def test_cargo_constraint_fails_when_not_found(tmp_path):
     assert results[0].status == "failed"
 
 
+# --- Maven ---
+
+
+def test_maven_constraint_passes(tmp_path, mocker):
+    mock_run = mocker.patch(
+        "gorget.policy.vendor_constraints.run",
+        return_value=_ok("[INFO] +- org.apache.commons:commons-text:jar:1.12.0:compile\n"),
+    )
+    entry = make_entry(
+        package="org.apache.commons:commons-text", ecosystem="maven", version="1.12.0"
+    )
+    results = check_vendor_constraints(
+        [entry], [VendoredModule(ecosystem="maven", path=tmp_path)]
+    )
+    assert results[0].status == "passed"
+    assert mock_run.call_args.args[0] == [
+        "mvn",
+        "dependency:tree",
+        "-Dincludes=org.apache.commons:commons-text",
+        "-DoutputType=text",
+    ]
+
+
+def test_maven_constraint_uses_vendor_repository_offline(tmp_path, mocker):
+    (tmp_path / "vendor").mkdir()
+    mock_run = mocker.patch(
+        "gorget.policy.vendor_constraints.run",
+        return_value=_ok("[INFO] \\- org.example:lib:jar:2.0.0:runtime\n"),
+    )
+    entry = make_entry(package="org.example:lib", ecosystem="maven", version="2.0.0")
+    results = check_vendor_constraints(
+        [entry], [VendoredModule(ecosystem="maven", path=tmp_path)]
+    )
+    assert results[0].status == "passed"
+    assert mock_run.call_args.args[0][:3] == [
+        "mvn",
+        "-o",
+        f"-Dmaven.repo.local={tmp_path / 'vendor'}",
+    ]
+
+
+def test_maven_constraint_fails_when_not_found(tmp_path, mocker):
+    mocker.patch("gorget.policy.vendor_constraints.run", return_value=_ok("[INFO] BUILD SUCCESS"))
+    entry = make_entry(package="org.example:lib", ecosystem="maven", version="1.0.0")
+    results = check_vendor_constraints(
+        [entry], [VendoredModule(ecosystem="maven", path=tmp_path)]
+    )
+    assert results[0].status == "failed"
+
+
 # --- module discovery / dispatch ---
 
 

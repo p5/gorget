@@ -1,0 +1,22 @@
+fetch:
+  - type: git
+    repo: "./demo-repo"
+    ref: "v${VERSION}"
+    archive_name: "${PACKAGE}-${VERSION}.tar.gz"
+
+transform:
+  - type: vendor-bump
+    ecosystem: maven
+    pins:
+      - dependency: "org.apache.commons:commons-lang3"
+        version: "3.14.0"
+  - type: vendor
+    ecosystem: maven
+    archive_name: "${PACKAGE}-${VERSION}-vendor.tar.gz"
+
+policy:
+  vendor-constraints:
+    - package: "org.apache.commons:commons-lang3"
+      ecosystem: maven
+      version: "3.14.0"
+      reason: "Maven demo minimum"

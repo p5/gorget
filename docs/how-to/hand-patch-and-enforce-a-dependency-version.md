@@ -87,8 +87,8 @@ policy:
 ```
 
 This is a completely independent check -- it re-resolves the actually
-vendored version (`go list -m`, `node_modules/<pkg>/package.json`, or
-`Cargo.lock`, depending on `ecosystem`) on every single run and compares it
+vendored version (`go list -m`, a JavaScript lockfile, `Cargo.lock`, or Maven's
+dependency tree, depending on `ecosystem`) on every single run and compares it
 against `version`, regardless of whether that version got there via your
 `vendor-bump` step, a manually-edited lockfile, or upstream just happening to
 require it already. See

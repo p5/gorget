@@ -73,10 +73,29 @@ def _cargo_audit(module: VendoredModule) -> CheckResult:
     return CheckResult(type="audit", target=f"cargo:{module.path}", status="passed")
 
 
+def _maven_audit(module: VendoredModule) -> CheckResult:
+    cmd = [
+        "mvn",
+        "org.owasp:dependency-check-maven:13.0.0:check",
+        "-DfailBuildOnCVSS=0",
+        "-DnvdApiKeyEnvironmentVariable=NVD_API_KEY",
+    ]
+    result = run(cmd, cwd=module.path)
+    if result.returncode != 0:
+        return CheckResult(
+            type="audit",
+            target=f"maven:{module.path}",
+            status="warning",
+            reason=(result.stdout or result.stderr).strip(),
+        )
+    return CheckResult(type="audit", target=f"maven:{module.path}", status="passed")
+
+
 _AUDITORS = {
     "go": _go_mod_verify,
     "npm": _npm_audit,
     "cargo": _cargo_audit,
+    "maven": _maven_audit,
 }
 
 

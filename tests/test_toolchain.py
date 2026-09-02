@@ -75,6 +75,14 @@ def test_verify_installed_python_version_format(mocker):
     verify_installed([ToolchainEntry(name="python", version="3.13")])
 
 
+def test_verify_installed_maven_version_format(mocker):
+    mocker.patch(
+        "gorget.toolchain.run",
+        return_value=_completed(stdout="Apache Maven 3.9.11\nMaven home: /usr/share/maven\n"),
+    )
+    verify_installed([ToolchainEntry(name="maven", version="3.9")])
+
+
 def test_verify_installed_unknown_tool_name_raises(mocker):
     mock_run = mocker.patch("gorget.toolchain.run")
     with pytest.raises(GorgetConfigError, match="Unknown toolchain name"):

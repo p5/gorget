@@ -14,6 +14,7 @@ from gorget.transform.vendor_bump import (
     VendorBumpHandler,
     _CargoPin,
     _GoPin,
+    _MavenPin,
     _parse_constraint,
 )
 
@@ -75,6 +76,95 @@ def test_go_pin_tilde_prefix(tmp_path, mocker):
     assert mock_run.call_args_list[0].args[0] == [
         "go", "mod", "edit", "-require=golang.org/x/text@0.39",
     ]
+
+
+# --- Maven ---
+
+
+def test_maven_bump_updates_dependency_version(tmp_path, mocker):
+    (tmp_path / "pom.xml").write_text(
+        "<project><dependencies><dependency>"
+        "<groupId>org.apache.commons</groupId><artifactId>commons-text</artifactId>"
+        "<version>1.11.0</version></dependency></dependencies></project>"
+    )
+    mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+    entry = VendorBumpEntry(
+        dependency="org.apache.commons:commons-text", version="1.12.0"
+    )
+
+    _MavenPin().apply(tmp_path, entry, [])
+
+    assert mock_run.call_args.args[0] == [
+        "mvn",
+        "versions:use-dep-version",
+        "-Dincludes=org.apache.commons:commons-text",
+        "-DdepVersion=1.12.0",
+        "-DforceVersion=true",
+        "-DgenerateBackupPoms=false",
+    ]
+
+
+def test_maven_bump_requires_pom(tmp_path):
+    entry = VendorBumpEntry(dependency="org.example:lib", version="1.0.0")
+    with pytest.raises(GorgetConfigError, match="no pom.xml"):
+        _MavenPin().apply(tmp_path, entry, [])
+
+
+def test_maven_bump_requires_full_coordinates(tmp_path):
+    (tmp_path / "pom.xml").write_text("<project/>")
+    entry = VendorBumpEntry(dependency="lib", version="1.0.0")
+    with pytest.raises(GorgetConfigError, match="groupId:artifactId"):
+        _MavenPin().apply(tmp_path, entry, [])
+
+
+def test_maven_bump_reports_command_failure(tmp_path, mocker):
+    (tmp_path / "pom.xml").write_text(
+        "<project><dependencies><dependency>"
+        "<groupId>org.example</groupId><artifactId>lib</artifactId><version>0.9</version>"
+        "</dependency></dependencies></project>"
+    )
+    mocker.patch("gorget.transform.vendor_bump.run", return_value=_fail("plugin failed"))
+    entry = VendorBumpEntry(dependency="org.example:lib", version="1.0.0")
+    with pytest.raises(GorgetTransientError, match="plugin failed"):
+        _MavenPin().apply(tmp_path, entry, [])
+
+
+def test_maven_bump_manages_transitive_dependency(tmp_path, mocker):
+    (tmp_path / "pom.xml").write_text(
+        '<project xmlns="http://maven.apache.org/POM/4.0.0">'
+        "<modelVersion>4.0.0</modelVersion>"
+        "<groupId>org.example</groupId><artifactId>app</artifactId><version>1</version>"
+        "</project>"
+    )
+    mock_run = mocker.patch("gorget.transform.vendor_bump.run")
+
+    _MavenPin().apply(
+        tmp_path,
+        VendorBumpEntry(dependency="org.example:transitive-lib", version="2.1.0"),
+        [],
+    )
+
+    text = (tmp_path / "pom.xml").read_text()
+    assert "<dependencyManagement>" in text
+    assert "<groupId>org.example</groupId>" in text
+    assert "<artifactId>transitive-lib</artifactId>" in text
+    assert "<version>2.1.0</version>" in text
+    mock_run.assert_not_called()
+
+
+def test_maven_bump_updates_existing_dependency_management_entry(tmp_path, mocker):
+    (tmp_path / "pom.xml").write_text(
+        "<project><dependencyManagement><dependencies><dependency>"
+        "<groupId>org.example</groupId><artifactId>lib</artifactId><version>1.0</version>"
+        "</dependency></dependencies></dependencyManagement></project>"
+    )
+    mock_run = mocker.patch("gorget.transform.vendor_bump.run", return_value=_ok())
+
+    _MavenPin().apply(
+        tmp_path, VendorBumpEntry(dependency="org.example:lib", version="2.0"), []
+    )
+
+    assert mock_run.call_args.args[0][0:2] == ["mvn", "versions:use-dep-version"]
 
 
 # --- npm (direct + transitive via overrides) ---

@@ -1,4 +1,4 @@
-"""Toolchain version validation for per-package Go/Node/Rust/Python overrides.
+"""Toolchain version validation for installed package build tools.
 
 Gorget never fetches or switches toolchain versions -- it only checks that
 whatever is *already installed* satisfies the pipeline's declared requirement,
@@ -36,6 +36,7 @@ _VERSION_CHECKS: dict[str, tuple[list[str], re.Pattern[str]]] = {
     "cargo": (["cargo", "--version"], re.compile(r"cargo (\d+\.\d+\.\d+)")),
     "rustc": (["rustc", "--version"], re.compile(r"rustc (\d+\.\d+\.\d+)")),
     "python": (["python3", "--version"], re.compile(r"Python (\d+\.\d+\.\d+)")),
+    "maven": (["mvn", "--version"], re.compile(r"Apache Maven (\d+\.\d+\.\d+)")),
 }
 
 

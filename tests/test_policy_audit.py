@@ -88,6 +88,31 @@ def test_cargo_audit_clean_passes(tmp_path, mocker):
     assert results[0].status == "passed"
 
 
+# --- Maven audit: OWASP dependency-check, warn-only ---
+
+
+def test_maven_audit_clean_passes(tmp_path, mocker):
+    mock_run = mocker.patch("gorget.policy.audit.run", return_value=_ok())
+    results = run_audits([VendoredModule(ecosystem="maven", path=tmp_path)])
+    assert results[0].status == "passed"
+    assert mock_run.call_args.args[0] == [
+        "mvn",
+        "org.owasp:dependency-check-maven:13.0.0:check",
+        "-DfailBuildOnCVSS=0",
+        "-DnvdApiKeyEnvironmentVariable=NVD_API_KEY",
+    ]
+
+
+def test_maven_audit_findings_are_warning_not_failure(tmp_path, mocker):
+    mocker.patch(
+        "gorget.policy.audit.run",
+        return_value=_fail(stdout="One or more dependencies were identified with vulnerabilities"),
+    )
+    results = run_audits([VendoredModule(ecosystem="maven", path=tmp_path)])
+    assert results[0].status == "warning"
+    assert "vulnerabilities" in results[0].reason
+
+
 # --- dispatch across multiple modules ---
 
 

@@ -7,7 +7,7 @@ enforces dependency policy, and emits lookaside-ready artifacts.
 
 It's a plain CLI tool, installed like any other build dependency (e.g. via
 RPM) and invoked directly -- its `fetch:`/`vendor:` steps already run
-untrusted third-party code the same way `go-vendor-tools`/`npm`/`cargo` do,
+untrusted third-party code the same way `go-vendor-tools`, `npm`, `cargo`, and Maven do,
 so it doesn't need or get container isolation those tools don't have either.
 
 Each package gets a declarative `<package>.source-pipeline.yaml` describing
@@ -23,6 +23,7 @@ parsing, variable substitution, the stage pipeline, and a minimal Emit).
 - [Getting started: write your first source-pipeline.yaml](docs/how-to/getting-started.md)
 - [Add source verification for a new upstream](docs/how-to/verify-a-new-upstream.md)
 - [Hand-patch a vendored dependency, and stop it from regressing](docs/how-to/hand-patch-and-enforce-a-dependency-version.md)
+- [Maven bump and offline vendor example](examples/maven-pipeline-demo/)
 - [Add a policy check to an existing pipeline](docs/how-to/add-a-policy-check.md)
 - [Add a post: step to refresh generated metadata](docs/how-to/add-a-post-step.md)
 - [Fetch a source whose URL you don't know until runtime](docs/how-to/discover-additional-sources.md)
@@ -64,7 +65,7 @@ four explicitly -- there's no container providing them implicitly anymore.
 | `spec-source` | Download the spec's `Source0`/`SourceN` URLs (macro-resolved), by index or all |
 | `url` | Download an explicit URL not declared in the spec |
 | `git` | Clone a repo at a tag/branch/commit (optionally with recursive submodules via `submodules: shallow`/`full`; use `full` if the project pins submodules to non-tip commits), archive the checkout (or a subdir) |
-| `vendor` | Generate a Go/npm/pnpm/yarn/Cargo/Composer vendor archive (multi-submodule aware, multi-arch for npm) |
+| `vendor` | Generate a Go/npm/pnpm/yarn/Cargo/Composer/Maven vendor archive (multi-submodule aware, multi-arch for npm) |
 
 `git` (or another real fetch step) is mandatory for a **native package** (no
 Fedora dist-git history, so no `Source0` tarball URL to fall back to) --
@@ -87,7 +88,7 @@ fetch:
     archive_name: "${PACKAGE}-${VERSION}.tar.gz"  # default shown; optional
 
   - type: vendor
-    ecosystem: cargo              # go | npm | cargo | composer
+    ecosystem: cargo              # go | npm | cargo | composer | maven
     archive_name: "${PACKAGE}-${VERSION}-vendor.tar.xz"  # see note below
     modules:                       # default: [{path: "."}] -- a single
       - path: "."                  # module rooted at the checkout itself
@@ -113,6 +114,13 @@ each gets its own labeled top-level directory in the combined archive unless
 there's exactly one module with no explicit `name`, which instead produces a
 bare `vendor/` at the archive root.
 
+For Maven, gorget runs `mvn dependency:go-offline` with `vendor/` as the local
+repository and archives that repository. Maven bumps use
+`groupId:artifactId` coordinates. Direct declarations use the Maven Versions
+plugin; transitive dependencies get a `dependencyManagement` entry. As with
+other `vendor-bump` ecosystems, gorget repacks the source archive after the
+edit so its `pom.xml` matches the vendor repository.
+
 **`git` doesn't manage credentials.** It shells out to a plain `git
 clone`/`git checkout`, inheriting whatever ambient git configuration the
 process invoking gorget already has (a credential helper, an SSH agent, a
@@ -129,7 +137,7 @@ Runs after `fetch:`, in declared order, against what was already fetched.
 | Step | Purpose |
 |---|---|
 | `strip-tarball` | Remove paths (glob patterns) from a fetched tarball and repack it |
-| `vendor-bump` | Bump a vendored dependency (direct **or** nested transitive) to a minimum or series-capped version (Go/npm/pnpm/yarn/Cargo), before a later `vendor` step re-vendors. Transitive deps are forced via the ecosystem's override mechanism (npm `overrides`, pnpm `pnpm.overrides`, yarn `resolutions`, cargo `--precise`). Plain `version: "0.39.0"` means `>=0.39.0` (no upper bound); tilde `version: "~4.18.2"` means `>=4.18.2` capped to the `4.18.x` series |
+| `vendor-bump` | Bump a vendored dependency (direct **or** nested transitive) to a minimum or series-capped version (Go/npm/pnpm/yarn/Cargo/Maven), before a later `vendor` step re-vendors. Transitive deps are forced via the ecosystem's override mechanism (npm `overrides`, pnpm `pnpm.overrides`, yarn `resolutions`, cargo `--precise`). Plain `version: "0.39.0"` means `>=0.39.0` (no upper bound); tilde `version: "~4.18.2"` means `>=4.18.2` capped to the `4.18.x` series |
 | `vendor` | Same step as `fetch:`'s `vendor` (reused) -- lets `vendor-bump` run before vendoring, since `fetch:` always runs before `transform:` |
 | `build-ui` | Run `npm`/`yarn run <script>` and archive the build output directory |
 | `run` | Escape hatch: an arbitrary command, with declared output paths archived as new artifacts afterward |
@@ -247,11 +255,11 @@ instead of shipping quietly.
 policy:
   vendor-constraints:
     - package: sanitize-html
-      ecosystem: npm        # go | npm | pnpm | yarn | cargo
+      ecosystem: npm        # go | npm | pnpm | yarn | cargo | maven
       version: "2.17.5"      # minimum version -- "at least this version"
       reason: "CVE-2024-XXXXX"
 
-  audit: true                # run go mod verify / npm audit / cargo audit
+  audit: true                # run Go/npm/Cargo/Maven ecosystem audits
                               # against every vendored module found
 
   license-compliance:
@@ -263,7 +271,7 @@ policy:
 | Check | Behavior |
 |---|---|
 | `vendor-constraints` | Resolves the actual vendored version (`go list -m`, `node_modules/<pkg>/package.json`, `Cargo.lock`) and compares against the declared minimum. Checks every vendored module for that ecosystem automatically -- no per-entry module path needed. Fails closed. |
-| `audit` | `go mod verify` checks module cache checksums against `go.sum` -- deterministic, no network, **fails closed**. `npm audit`/`cargo audit` query live vulnerability databases over the network -- non-deterministic (results can change with no code change), so findings are recorded in `report.json` but are **warn-only, never fail closed**. `cargo-audit` must be separately installed on `PATH`. |
+| `audit` | `go mod verify` checks module cache checksums against `go.sum` -- deterministic, no network, **fails closed**. `npm audit`, `cargo audit`, and Maven's OWASP dependency-check query live vulnerability databases over the network -- non-deterministic (results can change with no code change), so findings are recorded in `report.json` but are **warn-only, never fail closed**. `cargo-audit` must be separately installed on `PATH`. |
 | `license-compliance` | Flags a vendored dependency whose declared license is in `disallowed`. Supported for npm (`package.json`'s `license` field) and Cargo (`Cargo.toml`'s `license` field) only -- Go has no standard machine-readable per-module license field, so Go modules get a single "unsupported" warning instead of a fabricated check. |
 
 A package with none of the three configured gets a non-blocking "no policy
@@ -341,7 +349,7 @@ fails closed otherwise.
 
 ```yaml
 toolchain:
-  - name: go        # one of: go, node, npm, cargo, rustc, python
+  - name: go        # one of: go, node, npm, cargo, rustc, python, maven
     version: 1.22.0
 ```
 
