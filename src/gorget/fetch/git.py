@@ -20,7 +20,9 @@ self-hosted servers). Use "full" if a project pins submodules that way.
 
 from __future__ import annotations
 
+import logging
 import re
+import subprocess
 from pathlib import Path
 
 from gorget.config.schema import GitStep
@@ -30,8 +32,20 @@ from gorget.util.archive import make_tar_gz, strip_archive_suffix
 from gorget.util.git import commit_timestamp
 from gorget.util.subprocess_run import run
 
+logger = logging.getLogger("gorget.fetch.git")
+
 _SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 _SLUG_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+# git's own message when `clone --branch <ref>` resolves an annotated tag
+# object (as opposed to a lightweight tag or branch, which point directly at
+# a commit) -- purely informational, git still resolves and checks out the
+# right commit. Surfaced as an explicit note (not silently dropped) since
+# --debug relays raw stderr verbatim and this reads as alarming out of
+# context.
+_BENIGN_ANNOTATED_TAG_RE = re.compile(
+    r"^warning: refs/tags/\S+ [0-9a-f]+ is not a commit!$",
+    re.MULTILINE,
+)
 
 
 def _looks_like_sha(ref: str) -> bool:
@@ -69,7 +83,7 @@ class GitHandler:
 
     def _clone(self, step: GitStep, dest: Path) -> None:
         if step.shallow and not _looks_like_sha(step.ref):
-            self._run_git(
+            result = self._run_git(
                 [
                     "git", "clone",
                     "--branch", step.ref,
@@ -79,6 +93,7 @@ class GitHandler:
                 ],
                 f"git clone --branch {step.ref} failed for {step.repo}",
             )
+            self._note_benign_annotated_tag_warning(result, step.ref)
             return
 
         if step.shallow and _looks_like_sha(step.ref):
@@ -118,13 +133,28 @@ class GitHandler:
         self._run_git(clone_args, f"git clone failed for {step.repo}")
         self._run_git(["git", "checkout", step.ref], f"git checkout {step.ref} failed", cwd=dest)
 
+    def _note_benign_annotated_tag_warning(
+        self, result: subprocess.CompletedProcess, ref: str
+    ) -> None:
+        if _BENIGN_ANNOTATED_TAG_RE.search(result.stderr):
+            logger.info(
+                "Note: the \"is not a commit\" warning above is git's own message "
+                "for shallow-cloning an annotated tag (%r resolves to a tag object, "
+                "not directly a commit) -- git still resolves and checks out the "
+                "right commit underneath it. Not an error.",
+                ref,
+            )
+
     def _init_submodules(self, dest: Path, *, shallow: bool) -> None:
         args = ["git", "submodule", "update", "--init", "--recursive"]
         if shallow:
             args += ["--depth", "1"]
         self._run_git(args, f"git submodule update failed for {dest}", cwd=dest)
 
-    def _run_git(self, args: list[str], error_prefix: str, *, cwd: Path | None = None) -> None:
+    def _run_git(
+        self, args: list[str], error_prefix: str, *, cwd: Path | None = None
+    ) -> subprocess.CompletedProcess:
         result = run(args, cwd=cwd)
         if result.returncode != 0:
             raise GorgetTransientError(f"{error_prefix}: {result.stderr.strip()}")
+        return result

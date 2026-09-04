@@ -229,6 +229,42 @@ def test_checkout_failure_raises_transient_error(tmp_path, mocker):
         GitHandler().run(step, make_ctx(tmp_path))
 
 
+def test_annotated_tag_warning_gets_a_benign_note(tmp_path, mocker, caplog):
+    """git's own `warning: refs/tags/<tag> <hash> is not a commit!` during a
+    shallow --branch clone of an annotated tag is purely informational (git
+    still resolves and checks out the right commit) -- --debug relays raw
+    subprocess stderr verbatim, so without an explicit note this reads as an
+    unexplained error to anyone scanning CI logs.
+    """
+
+    def _clone_with_tag_warning(args, cwd=None):
+        _fake_clone(args, cwd)
+        return subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="warning: refs/tags/v1.2.3 abc1234 is not a commit!\n",
+        )
+
+    mocker.patch("gorget.fetch.git.commit_timestamp", return_value=1700000000)
+    mocker.patch("gorget.fetch.git.run", side_effect=_clone_with_tag_warning)
+    step = GitStep(repo="https://example.com/repo.git", ref="v1.2.3", shallow=True)
+    with caplog.at_level("INFO", logger="gorget.fetch.git"):
+        GitHandler().run(step, make_ctx(tmp_path))
+
+    assert any("Not an error" in record.getMessage() for record in caplog.records)
+
+
+def test_no_benign_note_when_clone_has_no_warning(tmp_path, mocker, caplog):
+    mocker.patch("gorget.fetch.git.commit_timestamp", return_value=1700000000)
+    mocker.patch("gorget.fetch.git.run", side_effect=_fake_clone)
+    step = GitStep(repo="https://example.com/repo.git", ref="v1.2.3", shallow=True)
+    with caplog.at_level("INFO", logger="gorget.fetch.git"):
+        GitHandler().run(step, make_ctx(tmp_path))
+
+    assert not caplog.records
+
+
 def test_dry_run_skips_clone_entirely(tmp_path, mocker):
     mock_run = mocker.patch("gorget.fetch.git.run")
     step = GitStep(repo="https://example.com/repo.git", ref="v1.0.0", shallow=True)
