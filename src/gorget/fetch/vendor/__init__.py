@@ -7,6 +7,9 @@ against the concrete `FetchContext`).
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
 from gorget.config.schema import VendorStep
 from gorget.exceptions import GorgetConfigError
 from gorget.fetch.base import FetchedArtifact, build_artifact
@@ -44,31 +47,43 @@ class VendorHandler:
                     "A 'vendor' step requires a preceding 'git' step in the same "
                     "pipeline to establish a source checkout to vendor against"
                 )
-            module_outputs = [
-                (
-                    module,
-                    ecosystem.vendor(
-                        ctx.source_dir / module.path,
+            module_outputs = []
+            preexisting_outputs: set[Path] = set()
+            cleanup = getattr(type(ecosystem), "cleanup", None)
+            try:
+                for module in step.modules:
+                    module_dir = ctx.source_dir / module.path
+                    existing_dirs = {
+                        path.resolve() for path in module_dir.rglob("*") if path.is_dir()
+                    }
+                    output = ecosystem.vendor(
+                        module_dir,
                         ctx.toolchain,
                         ctx.package_dir,
                         module.use_workspace,
                         step.platforms or (),
-                    ),
+                    )
+                    module_outputs.append((module, output))
+                    if output.resolve() in existing_dirs:
+                        preexisting_outputs.add(output.resolve())
+                mtime = commit_timestamp(ctx.source_dir)
+                # Only the single-unnamed-module ("bare vendor/") case needs
+                # root_files -- combine_vendor_archives ignores them otherwise
+                # anyway, but there's nothing to gain from an archive_root_files
+                # filesystem check that's guaranteed to be discarded.
+                root_files = (
+                    ecosystem.archive_root_files(module_outputs[0][1].parent)
+                    if len(module_outputs) == 1 and module_outputs[0][0].name is None
+                    else None
                 )
-                for module in step.modules
-            ]
-            mtime = commit_timestamp(ctx.source_dir)
-            # Only the single-unnamed-module ("bare vendor/") case needs
-            # root_files -- combine_vendor_archives ignores them otherwise
-            # anyway, but there's nothing to gain from an archive_root_files
-            # filesystem check that's guaranteed to be discarded.
-            root_files = (
-                ecosystem.archive_root_files(module_outputs[0][1].parent)
-                if len(module_outputs) == 1 and module_outputs[0][0].name is None
-                else None
-            )
-            combine_vendor_archives(
-                module_outputs, archive_path, mtime=mtime, root_files=root_files
-            )
+                combine_vendor_archives(
+                    module_outputs, archive_path, mtime=mtime, root_files=root_files
+                )
+            finally:
+                for _module, output in module_outputs:
+                    if cleanup is not None:
+                        cleanup(ecosystem, output)
+                    elif output.resolve() not in preexisting_outputs:
+                        shutil.rmtree(output, ignore_errors=True)
 
         return [build_artifact(archive_path, archive_name, f"vendor:{step.ecosystem}", ctx.dry_run)]

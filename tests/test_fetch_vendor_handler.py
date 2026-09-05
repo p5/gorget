@@ -1,3 +1,4 @@
+import shutil
 import tarfile
 from unittest.mock import Mock
 
@@ -168,6 +169,98 @@ def test_vendor_tar_bz2_archive_name_produces_real_bzip2_file(tmp_path, mocker):
     with tarfile.open(artifacts[0].path, "r:bz2") as tar:
         names = tar.getnames()
     assert any(name.endswith("modules.txt") for name in names)
+
+
+def test_vendor_removes_generated_output_after_archiving(tmp_path, mocker):
+    mocker.patch("gorget.fetch.vendor.commit_timestamp", return_value=1700000000)
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+
+    def fake_vendor(module_dir, *_args, **_kwargs):
+        vendor_dir = module_dir / "vendor"
+        vendor_dir.mkdir()
+        (vendor_dir / "dependency.txt").write_text("complete offline content")
+        return vendor_dir
+
+    mocker.patch(
+        "gorget.fetch.vendor._ECOSYSTEMS",
+        {
+            "go": Mock(
+                vendor=Mock(side_effect=fake_vendor),
+                archive_root_files=Mock(return_value=[]),
+            )
+        },
+    )
+
+    artifact = VendorHandler().run(
+        VendorStep(ecosystem="go"), make_ctx(tmp_path, source_dir=source_dir)
+    )[0]
+
+    assert not (source_dir / "vendor").exists()
+    with tarfile.open(artifact.path) as tar:
+        archived = tar.extractfile("vendor/dependency.txt")
+        assert archived is not None
+        assert archived.read() == b"complete offline content"
+
+
+def test_vendor_preserves_preexisting_output_directory(tmp_path, mocker):
+    mocker.patch("gorget.fetch.vendor.commit_timestamp", return_value=1700000000)
+    source_dir = tmp_path / "src"
+    vendor_dir = source_dir / "vendor"
+    vendor_dir.mkdir(parents=True)
+    (vendor_dir / "upstream.txt").write_text("keep")
+
+    mocker.patch(
+        "gorget.fetch.vendor._ECOSYSTEMS",
+        {
+            "go": Mock(
+                vendor=Mock(return_value=vendor_dir),
+                archive_root_files=Mock(return_value=[]),
+            )
+        },
+    )
+
+    VendorHandler().run(VendorStep(ecosystem="go"), make_ctx(tmp_path, source_dir=source_dir))
+
+    assert (vendor_dir / "upstream.txt").read_text() == "keep"
+
+
+def test_vendor_calls_ecosystem_cleanup_after_archiving(tmp_path, mocker):
+    mocker.patch("gorget.fetch.vendor.commit_timestamp", return_value=1700000000)
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    store_dir = tmp_path / "temporary-store"
+    store_dir.mkdir()
+    (store_dir / "package.tgz").write_text("offline package")
+
+    class TemporaryVendor:
+        def __init__(self):
+            self.cleaned = []
+
+        def vendor(self, *_args, **_kwargs):
+            return store_dir
+
+        def archive_root_files(self, _module_dir):
+            return []
+
+        def cleanup(self, path):
+            self.cleaned.append(path)
+            shutil.rmtree(path)
+
+    ecosystem = TemporaryVendor()
+    mocker.patch(
+        "gorget.fetch.vendor._ECOSYSTEMS",
+        {"pnpm": ecosystem},
+    )
+
+    artifact = VendorHandler().run(
+        VendorStep(ecosystem="pnpm"), make_ctx(tmp_path, source_dir=source_dir)
+    )[0]
+
+    assert ecosystem.cleaned == [store_dir]
+    assert not store_dir.exists()
+    with tarfile.open(artifact.path) as tar:
+        assert tar.extractfile("vendor/package.tgz").read() == b"offline package"
 
 
 def test_vendor_dry_run_skips_ecosystem_and_combine(tmp_path, mocker):

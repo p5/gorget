@@ -72,6 +72,10 @@ def combine_vendor_archives(
     def _filter(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo:
         if mtime is not None:
             tarinfo.mtime = mtime
+        tarinfo.uid = 0
+        tarinfo.gid = 0
+        tarinfo.uname = ""
+        tarinfo.gname = ""
         return tarinfo
 
     def _add_all(tar: tarfile.TarFile) -> None:

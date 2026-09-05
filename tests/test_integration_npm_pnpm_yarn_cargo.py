@@ -12,6 +12,7 @@ Run just these tests:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import shutil
 import subprocess
 import tarfile
@@ -153,6 +154,22 @@ fetch:
     archive_name: "test-pnpm-store.tar.bz2"
 """
 
+PNPM_BUMP_PIPELINE = """
+fetch:
+  - type: git
+    repo: "{repo}"
+    ref: "main"
+transform:
+  - type: vendor-bump
+    ecosystem: pnpm
+    pins:
+      - dependency: is-number
+        version: "7.0.0"
+  - type: vendor
+    ecosystem: pnpm
+    archive_name: "test-pnpm-store.tar.bz2"
+"""
+
 
 @pytest.mark.integration
 @requires_git
@@ -180,6 +197,86 @@ def test_pnpm_vendor_produces_store_archive(tmp_path):
     with tarfile.open(archive, "r:bz2") as tar:
         names = tar.getnames()
         assert len(names) > 0, "pnpm store archive is empty"
+
+
+@pytest.mark.integration
+@requires_git
+@requires_pnpm
+def test_pnpm_workspace_bump_vendor_cleanup_and_reproducibility(tmp_path):
+    repo = _make_git_repo(
+        tmp_path,
+        {
+            "package.json": '{"name":"workspace-root","private":true}\n',
+            "pnpm-workspace.yaml": "packages:\n  - 'packages/*'\n",
+            "packages/app/package.json": (
+                '{"name":"app","version":"1.0.0","dependencies":{"is-odd":"3.0.1"}}\n'
+            ),
+            "packages/tools/package.json": (
+                '{"name":"tools","version":"1.0.0","dependencies":{"is-even":"1.0.0"}}\n'
+            ),
+        },
+    )
+    result = subprocess.run(
+        ["pnpm", "install", "--lockfile-only", "--ignore-scripts"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    _run_git(["add", "."], repo)
+    _run_git(["commit", "-m", "add pnpm lockfile"], repo)
+
+    checksums = []
+    for run_number in range(2):
+        output_dir = tmp_path / f"output-{run_number}"
+        ctx = _make_ctx(
+            tmp_path / f"pkg-{run_number}",
+            output_dir,
+            PNPM_BUMP_PIPELINE.format(repo=str(repo)),
+        )
+        report = PipelineRunner(ctx, resolve_pipeline_spec(ctx)).run()
+        assert {stage.name: stage.status for stage in report.stages}["transform"] == "success"
+
+        source = output_dir / "test-1.0.0.tar.gz"
+        vendor = output_dir / "test-pnpm-store.tar.bz2"
+        with tarfile.open(source) as tar:
+            names = tar.getnames()
+            assert not any(".pnpm-store" in Path(name).parts for name in names)
+            assert not any("node_modules" in Path(name).parts for name in names)
+            workspace_name = next(name for name in names if name.endswith("pnpm-workspace.yaml"))
+            lock_name = next(name for name in names if name.endswith("pnpm-lock.yaml"))
+            assert "is-number: '>=7.0.0'" in tar.extractfile(workspace_name).read().decode()
+            assert "7.0.0" in tar.extractfile(lock_name).read().decode()
+        with tarfile.open(vendor, "r:bz2") as tar:
+            vendor_names = tar.getnames()
+            assert any("/files/" in name for name in vendor_names)
+
+        if run_number == 0:
+            offline = tmp_path / "offline-check"
+            with tarfile.open(source) as tar:
+                tar.extractall(offline / "source", filter="data")
+            with tarfile.open(vendor, "r:bz2") as tar:
+                tar.extractall(offline / "store", filter="data")
+            source_root = next((offline / "source").iterdir())
+            offline_install = subprocess.run(
+                [
+                    "pnpm", "install", "--offline", "--frozen-lockfile", "--ignore-scripts",
+                    "--store-dir", str(offline / "store" / "vendor"),
+                ],
+                cwd=source_root,
+                capture_output=True,
+                text=True,
+            )
+            assert offline_install.returncode == 0, offline_install.stderr
+
+        checksums.append(
+            (
+                hashlib.sha256(source.read_bytes()).hexdigest(),
+                hashlib.sha256(vendor.read_bytes()).hexdigest(),
+            )
+        )
+
+    assert checksums[0] == checksums[1]
 
 
 # --- yarn ---
