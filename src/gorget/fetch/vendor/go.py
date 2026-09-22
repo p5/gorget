@@ -54,6 +54,7 @@ class GoVendor:
         toolchain: Sequence[ToolchainEntry] = (),
         package_dir: Path | None = None,
         use_workspace: bool = True,
+        task: str = "build",
     ) -> Path:
         config = _load_archive_config(package_dir)
 

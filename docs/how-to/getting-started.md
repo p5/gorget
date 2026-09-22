@@ -18,7 +18,7 @@ That's it -- no YAML to write or maintain.
 You need a real pipeline YAML as soon as any of these apply:
 
 - Sources come from a `git` clone rather than a tarball URL
-- You need a vendor archive (Go/npm/Cargo/Composer dependencies)
+- You need a vendor archive (Go/npm/Cargo/Composer/Gradle dependencies)
 - Something needs transforming after fetch (stripping paths, building UI
   assets, running an arbitrary command)
 - You want a checksum/signature check that isn't just the automatic
@@ -83,6 +83,7 @@ violation) mean.
 |---|---|---|
 | Clone a git repo instead of downloading a tarball | `fetch: git` | [`go-pipeline-demo`](../../examples/go-pipeline-demo/) |
 | Vendor Go/npm/Cargo/Composer dependencies | `fetch: vendor` | [`go-pipeline-demo`](../../examples/go-pipeline-demo/) |
+| Vendor Gradle dependencies | `fetch: vendor` or `transform: vendor` with `ecosystem: gradle` | [`kafka-pipeline-demo`](../../examples/kafka-pipeline-demo/) |
 | Strip paths from a fetched tarball, build UI assets, or run an arbitrary command | `transform:` | README [`transform:`](../../README.md#transform) |
 | Verify a GPG signature or a checksums-listing file | `verify:` | [`verify-demo`](../../examples/verify-demo/) |
 | Enforce a dependency version floor, license, or audit result | `policy:` | [Add a policy check to an existing pipeline](add-a-policy-check.md) |

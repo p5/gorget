@@ -63,7 +63,7 @@ four explicitly -- there's no container providing them implicitly anymore.
 | `spec-source` | Download the spec's `Source0`/`SourceN` URLs (macro-resolved), by index or all |
 | `url` | Download an explicit URL not declared in the spec |
 | `git` | Clone a repo at a tag/branch/commit, archive the checkout (or a subdir) |
-| `vendor` | Generate a Go/npm/Cargo/Composer vendor archive (multi-submodule aware) |
+| `vendor` | Generate a Go/npm/Cargo/Composer/Gradle vendor archive (multi-submodule aware) |
 
 ### `transform:`
 
@@ -106,6 +106,23 @@ rather than through `target:`'s extracted view, e.g. checksum-verifying it
 manually before a later step in the same `transform:` list mutates it
 (`verify:` always runs after all of `transform:`, so it can't see pristine
 bytes once something upstream in `transform:` has already changed them).
+
+For Gradle, gorget runs the configured `task` (default: `build`) with
+`GRADLE_USER_HOME` set to `vendor/`, then archives the populated Gradle user
+home. It uses `./gradlew` when the project includes the Gradle wrapper and
+otherwise uses `gradle`. For example, Gradle's own source tree should use its
+distribution task:
+
+```yaml
+transform:
+  - type: vendor
+    ecosystem: gradle
+    task: ":distributions-full:binDistributionZip"
+```
+
+A later build can use the extracted directory as `GRADLE_USER_HOME` and pass
+`--offline`; Gradle then fails if the build needs a dependency that the first
+build did not resolve.
 
 ### `verify:`
 
@@ -240,7 +257,7 @@ directory during a dry run) and when no `post:` steps are declared.
 
 ```yaml
 toolchain:
-  - name: go        # one of: go, node, npm, cargo, rustc, python
+  - name: go        # one of: go, node, npm, cargo, rustc, python, gradle
     version: 1.22.0
 ```
 

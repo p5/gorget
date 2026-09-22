@@ -75,6 +75,11 @@ def test_verify_installed_python_version_format(mocker):
     verify_installed([ToolchainEntry(name="python", version="3.13")])
 
 
+def test_verify_installed_gradle_version_format(mocker):
+    mocker.patch("gorget.toolchain.run", return_value=_completed(stdout="Gradle 8.10.2\n"))
+    verify_installed([ToolchainEntry(name="gradle", version="8.10")])
+
+
 def test_verify_installed_unknown_tool_name_raises(mocker):
     mock_run = mocker.patch("gorget.toolchain.run")
     with pytest.raises(GorgetConfigError, match="Unknown toolchain name"):

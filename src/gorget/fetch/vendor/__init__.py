@@ -1,5 +1,6 @@
-"""`vendor` step: generate dependency vendor archives for Go, npm, Cargo, and
-Composer ecosystems, combining multiple submodules (e.g. etcd) into one archive.
+"""`vendor` step: generate dependency vendor archives for Go, npm, Cargo,
+Composer, and Gradle ecosystems, combining multiple submodules (e.g. etcd) into
+one archive.
 
 Reused by both the Fetch stage's `vendor` step and the Transform stage's `vendor`
 step (see `fetch/vendor/base.py`'s `VendorRunContext` for why this isn't typed
@@ -16,6 +17,7 @@ from gorget.fetch.vendor.cargo import CargoVendor
 from gorget.fetch.vendor.combine import combine_vendor_archives
 from gorget.fetch.vendor.composer import ComposerVendor
 from gorget.fetch.vendor.go import GoVendor
+from gorget.fetch.vendor.gradle import GradleVendor
 from gorget.fetch.vendor.npm import NpmVendor
 from gorget.util.git import commit_timestamp
 
@@ -24,6 +26,7 @@ _ECOSYSTEMS: dict[str, VendorEcosystem] = {
     "npm": NpmVendor(),
     "cargo": CargoVendor(),
     "composer": ComposerVendor(),
+    "gradle": GradleVendor(),
 }
 
 
@@ -39,18 +42,25 @@ class VendorHandler:
                     "A 'vendor' step requires a preceding 'git' step in the same "
                     "pipeline to establish a source checkout to vendor against"
                 )
-            module_outputs = [
-                (
-                    module,
-                    ecosystem.vendor(
-                        ctx.source_dir / module.path,
+            module_outputs = []
+            for module in step.modules:
+                module_dir = ctx.source_dir / module.path
+                if step.ecosystem == "gradle":
+                    vendor_dir = ecosystem.vendor(
+                        module_dir,
                         ctx.toolchain,
                         ctx.package_dir,
                         module.use_workspace,
-                    ),
-                )
-                for module in step.modules
-            ]
+                        task=step.task,
+                    )
+                else:
+                    vendor_dir = ecosystem.vendor(
+                        module_dir,
+                        ctx.toolchain,
+                        ctx.package_dir,
+                        module.use_workspace,
+                    )
+                module_outputs.append((module, vendor_dir))
             mtime = commit_timestamp(ctx.source_dir)
             combine_vendor_archives(module_outputs, archive_path, mtime=mtime)
 

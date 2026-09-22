@@ -191,3 +191,24 @@ def test_vendor_threads_use_workspace_false_to_ecosystem(tmp_path, mocker):
     step = VendorStep(ecosystem="go", modules=[VendorModule(path=".", use_workspace=False)])
     VendorHandler().run(step, make_ctx(tmp_path, source_dir=source_dir))
     mock_vendor.assert_called_once_with(source_dir / ".", [], tmp_path, False)
+
+
+def test_vendor_threads_gradle_task_to_ecosystem(tmp_path, mocker):
+    mocker.patch("gorget.fetch.vendor.commit_timestamp", return_value=1700000000)
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+
+    def fake_vendor(module_dir, toolchain=(), package_dir=None, use_workspace=True, **kwargs):
+        vendor_dir = module_dir / "vendor"
+        vendor_dir.mkdir(parents=True)
+        (vendor_dir / "gradle-cache.bin").write_text("cache")
+        return vendor_dir
+
+    mock_vendor = Mock(side_effect=fake_vendor)
+    mocker.patch("gorget.fetch.vendor._ECOSYSTEMS", {"gradle": Mock(vendor=mock_vendor)})
+    task = ":distributions-full:binDistributionZip"
+    step = VendorStep(ecosystem="gradle", task=task)
+
+    VendorHandler().run(step, make_ctx(tmp_path, source_dir=source_dir))
+
+    mock_vendor.assert_called_once_with(source_dir / ".", [], tmp_path, True, task=task)

@@ -1,0 +1,10 @@
+fetch:
+  - type: git
+    repo: https://github.com/square/okhttp.git
+    ref: parent-5.5.0
+    archive-name: okhttp-5.5.0.tar.gz
+
+transform:
+  - type: vendor
+    ecosystem: gradle
+    archive-name: okhttp-5.5.0-gradle-vendor.tar.gz

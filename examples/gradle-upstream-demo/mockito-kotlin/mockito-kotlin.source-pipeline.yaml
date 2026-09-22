@@ -1,0 +1,10 @@
+fetch:
+  - type: git
+    repo: https://github.com/mockito/mockito-kotlin.git
+    ref: v6.3.0
+    archive-name: mockito-kotlin-6.3.0.tar.gz
+
+transform:
+  - type: vendor
+    ecosystem: gradle
+    archive-name: mockito-kotlin-6.3.0-gradle-vendor.tar.gz

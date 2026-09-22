@@ -1,0 +1,10 @@
+fetch:
+  - type: git
+    repo: https://github.com/ben-manes/gradle-versions-plugin.git
+    ref: v0.64.0
+    archive-name: gradle-versions-plugin-0.64.0.tar.gz
+
+transform:
+  - type: vendor
+    ecosystem: gradle
+    archive-name: gradle-versions-plugin-0.64.0-gradle-vendor.tar.gz

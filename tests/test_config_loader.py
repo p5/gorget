@@ -97,6 +97,17 @@ def test_build_pipeline_spec_vendor_multi_submodule():
     assert vendor_step.archive_name == "example-vendor.tar.gz"
 
 
+def test_gradle_vendor_task_defaults_and_parses():
+    default_spec = parse_pipeline_spec({"fetch": [{"type": "vendor", "ecosystem": "gradle"}]})
+    assert default_spec.fetch[0].task == "build"
+
+    task = ":distributions-full:binDistributionZip"
+    configured_spec = parse_pipeline_spec(
+        {"fetch": [{"type": "vendor", "ecosystem": "gradle", "task": task}]}
+    )
+    assert configured_spec.fetch[0].task == task
+
+
 def test_unknown_fetch_type_raises_config_error():
     with pytest.raises(GorgetConfigError, match="Unknown fetch step type"):
         build_pipeline_spec(FIXTURES / "unknown-fetch-type.yaml", substitution_vars=make_vars())
